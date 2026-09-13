@@ -1134,6 +1134,35 @@ const relationshipState: 'cold' | 'warm' | 'qualified' =
     { merge: true }
   )
 }
+    // Preserve clients completed earlier in this browser session or a previous
+    // visit. Replacing local storage with only the latest in-memory client caused
+    // Level 2 to occasionally receive a one-card selection list.
+    const storedClients = window.localStorage.getItem(LEVEL_ONE_MET_CLIENTS_KEY)
+    if (storedClients && this.completedClients.size === 0) {
+      try {
+        const parsed = JSON.parse(storedClients) as Array<{
+          name?: unknown
+          personaId?: unknown
+          texture?: unknown
+        }>
+        if (Array.isArray(parsed)) {
+          parsed.forEach((storedClient) => {
+            if (typeof storedClient.name !== 'string' || typeof storedClient.texture !== 'string') {
+              return
+            }
+            this.completedClients.set(storedClient.name, {
+              name: storedClient.name,
+              personaId:
+                typeof storedClient.personaId === 'string' ? storedClient.personaId : undefined,
+              texture: storedClient.texture,
+            })
+          })
+        }
+      } catch {
+        // Ignore damaged legacy storage and rebuild it from valid completions.
+      }
+    }
+
     this.completedClients.set(client.name, {
       name: client.name,
       personaId: client.personaId,
@@ -1351,9 +1380,21 @@ const relationshipState: 'cold' | 'warm' | 'qualified' =
 
     const previousInterfaceState = this.interfaceOpen
     const previousControlState = this.controlsEnabled
+    const clientReplyWasVisible = this.clientDialogue?.hasVisibleDialogueDom() ?? false
+    const managerReplyWasVisible = this.managerReplyInput?.visible ?? false
+    const managerLogWasVisible = this.managerDialogueLog?.visible ?? false
+    const notebookInputWasVisible = this.notebookInput?.visible ?? false
 
     this.interfaceOpen = true
     this.controlsEnabled = false
+
+    // Phaser DOM elements always sit above canvas-rendered objects. Hide any open
+    // interface DOM while the home menu is active so the dimmer and menu form one
+    // uninterrupted top layer instead of dialogue bubbles bleeding through it.
+    this.clientDialogue?.setDialogueDomVisible(false)
+    this.managerReplyInput?.setVisible(false)
+    this.managerDialogueLog?.setVisible(false)
+    this.notebookInput?.setVisible(false)
 
     const menu = this.add.container(0, 0).setScrollFactor(0).setDepth(7000)
 
@@ -1379,6 +1420,10 @@ const relationshipState: 'cold' | 'warm' | 'qualified' =
         this.menuPanel = undefined
         this.interfaceOpen = previousInterfaceState
         this.controlsEnabled = previousControlState
+        this.clientDialogue?.setDialogueDomVisible(clientReplyWasVisible)
+        this.managerReplyInput?.setVisible(managerReplyWasVisible)
+        this.managerDialogueLog?.setVisible(managerLogWasVisible)
+        this.notebookInput?.setVisible(notebookInputWasVisible)
       }
     )
 

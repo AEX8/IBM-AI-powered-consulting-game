@@ -50,44 +50,44 @@ const CURRENT_LEVEL_ONE_PERSONAS: Record<string, PersonaCompletionConfig> = {
       {
         key: 'business_problem',
         description: 'Supply-chain delays are the core business problem.',
-        hint: 'Ask what business problem is creating the most difficulty.',
+        hint: 'Ask about the supply delays.',
         critical: true,
       },
       {
         key: 'root_cause',
         description:
           'Disconnected systems and poor operational visibility make the delays difficult to diagnose.',
-        hint: 'Ask what is causing the problem or making it difficult to diagnose.',
+        hint: 'Ask what causes the delays.',
         critical: false,
       },
       {
         key: 'business_impact',
         description: 'The delays have caused missed delivery targets and customer compensation.',
-        hint: 'Ask how the problem is affecting customers, costs, or performance.',
+        hint: 'Ask how delays affect clients.',
         critical: true,
       },
       {
         key: 'current_approach',
         description: 'The company currently relies on extra staff and manual reporting.',
-        hint: 'Ask what the company has already tried.',
+        hint: 'Ask what they have tried.',
         critical: false,
       },
       {
         key: 'client_concern',
         description: 'Sarah wants to avoid a disruptive eighteen-month system replacement.',
-        hint: 'Ask whether there are constraints or concerns about making a change.',
+        hint: 'Ask about change concerns.',
         critical: false,
       },
       {
         key: 'desired_outcome',
         description: 'Sarah wants better operational visibility without replacing everything.',
-        hint: 'Ask what a successful outcome would look like.',
+        hint: 'Ask what success looks like.',
         critical: true,
       },
       {
         key: 'urgency',
         description: 'The issue is becoming urgent because the company is growing quickly.',
-        hint: 'Ask how soon the problem needs to be addressed.',
+        hint: 'Ask why this is urgent.',
         critical: true,
       },
     ],
@@ -99,46 +99,46 @@ const CURRENT_LEVEL_ONE_PERSONAS: Record<string, PersonaCompletionConfig> = {
         key: 'business_problem',
         description:
           'Customer information is fragmented across stores, online, mobile, and loyalty systems.',
-        hint: 'Ask what business problem is creating the most difficulty.',
+        hint: 'Ask about the disconnected data.',
         critical: true,
       },
       {
         key: 'business_impact',
         description:
           'The fragmented data prevents reliable customer, churn, and promotion analysis.',
-        hint: 'Ask how the problem affects decisions or customer outcomes.',
+        hint: 'Ask how data silos affect decisions.',
         critical: true,
       },
       {
         key: 'current_approach',
         description: 'Existing dashboards fail because the underlying data sources do not agree.',
-        hint: 'Ask what the company has already tried.',
+        hint: 'Ask why the dashboards disagree.',
         critical: false,
       },
       {
         key: 'internal_capability',
         description: 'David already has a strong internal technology team.',
-        hint: 'Ask what internal people or capabilities are already available.',
+        hint: 'Ask about the internal team.',
         critical: false,
       },
       {
         key: 'client_concern',
         description: 'David does not want an expensive two-year transformation programme.',
-        hint: 'Ask whether there are constraints or concerns about outside help.',
+        hint: 'Ask about budget or scope.',
         critical: false,
       },
       {
         key: 'desired_outcome',
         description:
           'David wants one reliable customer view and a practical solution that demonstrates value quickly.',
-        hint: 'Ask what a successful outcome would look like.',
+        hint: 'Ask what one view should enable.',
         critical: true,
       },
       {
         key: 'urgency',
         description:
           'The issue is becoming urgent because the company is planning a major expansion.',
-        hint: 'Ask why solving the problem is becoming a priority now.',
+        hint: 'Ask why expansion makes this urgent.',
         critical: true,
       },
     ],
@@ -162,7 +162,7 @@ export function getPersonaCompletionConfig(
     infoPoints: fallbackInfoPoints.map((description, index) => ({
       key: `information_${index + 1}`,
       description,
-      hint: "Ask another question about the client's situation and priorities.",
+      hint: 'Ask about their priorities.',
       critical: index < Math.min(4, fallbackInfoPoints.length),
     })),
   }
@@ -178,6 +178,35 @@ export function isPlayerWrappingUp(message: string): boolean {
   return /\b(clearer picture|enough (?:information|to work with)|great speaking|take (?:this|the) (?:information|details) back|wrap up|follow up with you)\b/i.test(
     message
   )
+}
+
+export function getContextualConversationHint({
+  config,
+  coveredInfoPoints,
+  playerTurnCount,
+}: {
+  config: PersonaCompletionConfig
+  coveredInfoPoints: readonly string[]
+  playerTurnCount: number
+}): string | undefined {
+  // The client opens with "Hi!", so the first coaching step should establish the
+  // consultant's role before directing the player into discovery questions.
+  if (playerTurnCount === 0) {
+    return 'Say hello and briefly introduce yourself.'
+  }
+
+  const covered = new Set(coveredInfoPoints)
+  const missingPoints = config.infoPoints.filter((point) => !covered.has(point.key))
+
+  if (missingPoints.length === 0) {
+    return undefined
+  }
+
+  // Coverage normally advances the first missing topic. If the classifier misses
+  // a valid answer, the turn offset still advances the prompt instead of showing
+  // the same hint forever. Every returned string is authored for the active client.
+  const hintIndex = Math.max(playerTurnCount - 1, 0) % missingPoints.length
+  return missingPoints[hintIndex]?.hint
 }
 
 export function evaluateConversationCompletion({
@@ -222,10 +251,13 @@ export function evaluateConversationCompletion({
   else if (reachedTurnLimit) completionReason = 'turn-limit'
   else if (completedAfterWrap) completionReason = 'coverage-and-wrap-up'
 
-  const nextMissingPoint = config.infoPoints.find((point) => !coveredSet.has(point.key))
   const hint = readyToClose
     ? 'You have enough information to assess this opportunity. Wrap up the conversation.'
-    : nextMissingPoint?.hint
+    : getContextualConversationHint({
+        config,
+        coveredInfoPoints: covered,
+        playerTurnCount,
+      })
 
   return {
     coveredInfoPoints: covered,
