@@ -27,18 +27,18 @@ const CLIENT_DETAILS: Record<
   string,
   { role: string; company: string; location: string; email: string; phone: string }
 > = {
-  'Jordan Lee': {
+  'Sarah Chen': {
     role: 'Chief Operating Officer',
     company: 'ACMD Manufacturing',
     location: 'Greater Melbourne Area',
-    email: 'jordan.lee@acmd.example',
+    email: 'sarah.chen@acmd.example',
     phone: '+61 3 9000 0142',
   },
-  'Morgan Blake': {
+  'David Palte': {
     role: 'Chief Technology Officer',
     company: 'Meridian Retail Group',
     location: 'Greater Melbourne Area',
-    email: 'morgan.blake@meridian.example',
+    email: 'david.palte@meridian.example',
     phone: '+61 3 9000 0186',
   },
 }
@@ -88,6 +88,7 @@ export function createOutreachLaptopFlow(
   let step: LaptopStep = 'clients'
   let selectedClient: OutreachClient | undefined
   let emailCopied = false
+  let furthestProgressIndex = 0
 
   const gameObject = scene.add
     .dom(720, 360)
@@ -110,12 +111,15 @@ export function createOutreachLaptopFlow(
     // copying contact details advance independently. The explicit mapping keeps
     // screen count separate from the five checklist items in the wireframe.
     const activeIndex = PROGRESS_INDEX[step]
+    furthestProgressIndex = Math.max(furthestProgressIndex, activeIndex)
+    const progressSteps: LaptopStep[] = ['clients', 'google', 'linkedin', 'contact', 'composer']
 
     return labels
       .map((label, index) => {
         const complete = index < activeIndex
         const active = index === activeIndex
-        return `<li class="l2-task ${complete ? 'done' : ''} ${active ? 'active' : ''}"><span>${complete ? '✓' : index + 1}</span>${label}</li>`
+        const available = index <= furthestProgressIndex && (index === 0 || selectedClient)
+        return `<li class="l2-task ${complete ? 'done' : ''} ${active ? 'active' : ''}"><button type="button" data-progress-step="${progressSteps[index]}" ${available ? '' : 'disabled'}><span>${complete ? '✓' : index + 1}</span>${label}</button></li>`
       })
       .join('')
   }
@@ -133,7 +137,7 @@ export function createOutreachLaptopFlow(
       .l2-side-head{height:88px;flex:0 0 88px;background:#b98900;border-bottom:5px solid #1f1f1f}
       .l2-side-body{display:flex;min-height:0;flex:1;flex-direction:column;margin:0 10px 10px;padding:28px 26px 22px;background:#f4f7f9}
       .l2-tasks{display:flex;flex-direction:column;gap:17px;margin:0;padding:0;list-style:none}
-      .l2-task{display:flex;align-items:center;gap:13px;color:#81868a;font-size:17px;font-weight:700}
+      .l2-task{display:flex;color:#81868a}.l2-task button{display:flex;width:100%;align-items:center;gap:13px;border:0;background:transparent;padding:0;color:inherit;font:700 17px Arial,sans-serif;text-align:left}.l2-task button:not(:disabled){cursor:pointer}.l2-task button:disabled{cursor:default}
       .l2-task span{display:grid;width:38px;height:38px;place-items:center;border:3px solid #8d9296;border-radius:50%;background:#fff}
       .l2-task.active{color:#1f4f78}.l2-task.active span{border-color:#1f4f78;background:#d9effa}.l2-task.done{color:#547c48}.l2-task.done span{border-color:#547c48;background:#e2efde}
       .l2-action{margin-top:auto;min-height:70px}.l2-button{border:3px solid #2c2c2a;border-radius:10px;background:#5b8c4a;color:#fff;padding:13px 20px;font-size:17px;font-weight:700;box-shadow:5px 6px 0 #2c2c2a;cursor:pointer}.l2-button:hover{transform:translateY(-2px)}.l2-button:disabled{border-color:#c8b998;background:#efe1c7;color:#96999c;box-shadow:none;cursor:not-allowed}
@@ -198,7 +202,12 @@ export function createOutreachLaptopFlow(
       )
       root.querySelectorAll<HTMLElement>('[data-client]').forEach((card) => {
         card.addEventListener('click', () => {
-          selectedClient = options.clients[Number(card.dataset.client)]
+          const nextClient = options.clients[Number(card.dataset.client)]
+          if (selectedClient?.name !== nextClient?.name) {
+            emailCopied = false
+            furthestProgressIndex = 0
+          }
+          selectedClient = nextClient
           render()
         })
       })
@@ -283,12 +292,25 @@ export function createOutreachLaptopFlow(
     // createFromHTML initially measures an empty wrapper. Re-measure after every
     // state render so Phaser centres the complete interface instead of treating its
     // top-left corner as the origin and pushing the laptop off-screen.
-    gameObject.updateSize()
+    if (gameObject.node) {
+  gameObject.updateSize()
+}
     // The sent screen contains both the persistent × and a Return to office
     // button. Bind every close control rather than only the first match so either
     // exit returns the player to the office and restores normal room controls.
     root.querySelectorAll<HTMLElement>('[data-action="close"]').forEach((control) => {
       control.addEventListener('click', options.onClose as EventListener)
+    })
+
+    // Completed checklist steps act as navigation, allowing the player to review
+    // earlier research or return to client selection. Future steps remain disabled
+    // until reached, and choosing a different client restarts client-specific work.
+    root.querySelectorAll<HTMLButtonElement>('[data-progress-step]').forEach((control) => {
+      control.addEventListener('click', () => {
+        if (control.disabled) return
+        step = control.dataset.progressStep as LaptopStep
+        render()
+      })
     })
   }
 

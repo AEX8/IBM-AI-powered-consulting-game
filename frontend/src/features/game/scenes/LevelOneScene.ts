@@ -1,4 +1,7 @@
 import Phaser from 'phaser'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { getClientAuth } from '@/lib/firebase/client'
+import { getSessionsCollection } from '@/lib/firebase/firestore'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   ClientDialogueController,
@@ -155,9 +158,9 @@ export class LevelOneScene extends Phaser.Scene {
         this.controlsEnabled = true
       },
 
-      onClientCompleted: (client) => {
-        this.handleClientCompleted(client)
-      },
+      onClientCompleted: (client, coveredInfoPoints) => {
+  this.handleClientCompleted(client, coveredInfoPoints)
+},
     })
 
     this.startArrivalSequence()
@@ -1097,8 +1100,69 @@ export class LevelOneScene extends Phaser.Scene {
     this.managerPanel = undefined
   }
 
-  private handleClientCompleted(client: ClientDefinition): void {
+  private handleClientCompleted(
+  client: ClientDefinition,
+  coveredInfoPoints: string[]
+): void {
+    const leadScore = Math.min(100, coveredInfoPoints.length * 15)
+
+const relationshipState: 'cold' | 'warm' | 'qualified' =
+  leadScore >= 75 ? 'qualified' : leadScore >= 45 ? 'warm' : 'cold'
     this.completedClientNames.add(client.name)
+    const user = getClientAuth().currentUser
+    if (user && client.personaId) {
+  const sessionRef = doc(
+    getSessionsCollection(),
+    `${user.uid}_${client.personaId}_level1`
+  )
+
+  void setDoc(
+    sessionRef,
+    {
+      id: sessionRef.id,
+      uid: user.uid,
+      personaId: client.personaId,
+      level: 1,
+      status: 'completed',
+      leadScore,
+      relationshipState,
+      messages: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      _schemaVersion: 1,
+    },
+    { merge: true }
+  )
+}
+    // Preserve clients completed earlier in this browser session or a previous
+    // visit. Replacing local storage with only the latest in-memory client caused
+    // Level 2 to occasionally receive a one-card selection list.
+    const storedClients = window.localStorage.getItem(LEVEL_ONE_MET_CLIENTS_KEY)
+    if (storedClients && this.completedClients.size === 0) {
+      try {
+        const parsed = JSON.parse(storedClients) as Array<{
+          name?: unknown
+          personaId?: unknown
+          texture?: unknown
+        }>
+        if (Array.isArray(parsed)) {
+          parsed.forEach((storedClient) => {
+            if (typeof storedClient.name !== 'string' || typeof storedClient.texture !== 'string') {
+              return
+            }
+            this.completedClients.set(storedClient.name, {
+              name: storedClient.name,
+              personaId:
+                typeof storedClient.personaId === 'string' ? storedClient.personaId : undefined,
+              texture: storedClient.texture,
+            })
+          })
+        }
+      } catch {
+        // Ignore damaged legacy storage and rebuild it from valid completions.
+      }
+    }
+
     this.completedClients.set(client.name, {
       name: client.name,
       personaId: client.personaId,
