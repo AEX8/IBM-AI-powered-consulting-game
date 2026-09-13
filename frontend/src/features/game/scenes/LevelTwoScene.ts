@@ -20,8 +20,8 @@ type MetClient = {
 }
 
 const CURRENT_LEVEL_ONE_CLIENTS: MetClient[] = [
-  { name: 'Jordan Lee', personaId: 'test-level-1', texture: 'good-client' },
-  { name: 'Morgan Blake', texture: 'bad-client' },
+  { name: 'Sarah Chen', personaId: 'test-level-1', texture: 'good-client' },
+  { name: 'David Palte', personaId: 'test-level-2', texture: 'bad-client' },
 ]
 
 /**
@@ -844,7 +844,22 @@ private showOutreachResult(score: number, feedback: string): void {
 
         if (Array.isArray(parsed)) {
           const validClients = parsed.filter(this.isMetClient)
-          if (validClients.length > 0) return validClients
+          if (validClients.length > 0) {
+            if (window.localStorage.getItem(LEVEL_ONE_COMPLETION_KEY) !== 'true') {
+              return validClients
+            }
+
+            // Completed Level 1 saves must expose both current clients. Merge the
+            // canonical entries into partial or legacy saves without duplicating
+            // a valid client already recorded by Level 1.
+            const clientsByName = new Map(validClients.map((client) => [client.name, client]))
+            CURRENT_LEVEL_ONE_CLIENTS.forEach((client) => {
+              clientsByName.set(client.name, clientsByName.get(client.name) ?? client)
+            })
+            return [...clientsByName.values()].filter((client) =>
+              CURRENT_LEVEL_ONE_CLIENTS.some((current) => current.name === client.name)
+            )
+          }
         }
       } catch {
         // A damaged browser value should not make the Level 2 laptop unusable.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   evaluateConversationCompletion,
+  getContextualConversationHint,
   getPersonaCompletionConfig,
   isExplicitConversationExit,
   SUGGESTED_CLOSING_REPLY,
@@ -60,7 +61,7 @@ describe('Level 1 client completion rules', () => {
     const result = evaluate(covered)
 
     expect(result.coverageReady).toBe(false)
-    expect(result.hint).toContain('soon')
+    expect(result.hint).toContain('urgent')
   })
 
   it('does not end early for generic thanks or proposal wording', () => {
@@ -128,5 +129,39 @@ describe('Level 1 client completion rules', () => {
       'information_2',
     ])
     expect(fallback.infoPoints.every((point) => point.critical)).toBe(true)
+  })
+
+  it('uses short, persona-specific hints that advance when coverage stalls', () => {
+    const firstHint = getContextualConversationHint({
+      config: david,
+      coveredInfoPoints: [],
+      playerTurnCount: 1,
+    })
+    const secondHint = getContextualConversationHint({
+      config: david,
+      coveredInfoPoints: [],
+      playerTurnCount: 2,
+    })
+
+    expect(firstHint).toBe('Ask about the disconnected data.')
+    expect(secondHint).toBe('Ask how data silos affect decisions.')
+    expect(firstHint).not.toBe(secondHint)
+    expect(Math.max(firstHint?.length ?? 0, secondHint?.length ?? 0)).toBeLessThanOrEqual(40)
+  })
+
+  it('starts with a greeting before moving into client discovery', () => {
+    const greetingHint = getContextualConversationHint({
+      config: david,
+      coveredInfoPoints: [],
+      playerTurnCount: 0,
+    })
+    const discoveryHint = getContextualConversationHint({
+      config: david,
+      coveredInfoPoints: [],
+      playerTurnCount: 1,
+    })
+
+    expect(greetingHint).toBe('Say hello and briefly introduce yourself.')
+    expect(discoveryHint).toBe('Ask about the disconnected data.')
   })
 })

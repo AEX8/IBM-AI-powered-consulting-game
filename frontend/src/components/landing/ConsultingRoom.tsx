@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { CheckCircle2, LockKeyhole, Sparkles } from 'lucide-react'
@@ -33,6 +33,9 @@ const readLevelOneCompletion = () => {
 
   return completedFromLevel || window.localStorage.getItem(LEVEL_ONE_COMPLETION_KEY) === 'true'
 }
+
+const readLevelOneCompletionArrival = () =>
+  new URLSearchParams(window.location.search).get('completed') === 'level-1'
 
 const subscribeToLevelOneUnlock = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -67,9 +70,15 @@ const roomImageDescriptionByType: Record<ConsultingStage['roomType'], string> = 
 export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
   const [isUnlocking, setIsUnlocking] = useState(false)
 
-  const levelOneJustCompleted = useSyncExternalStore(
+  const levelOneCompleted = useSyncExternalStore(
     subscribeToLevelOneCompletion,
     readLevelOneCompletion,
+    () => false
+  )
+
+  const levelOneCompletionArrival = useSyncExternalStore(
+    subscribeToLevelOneCompletion,
+    readLevelOneCompletionArrival,
     () => false
   )
 
@@ -79,12 +88,25 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
     () => false
   )
 
-  const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneJustCompleted
+  // The completion query parameter is a one-time arrival signal from Level 1.
+  // Consume it after opening the dashboard so returning from Level 2 or refreshing
+  // the lobby cannot replay the unlock celebration.
+  useEffect(() => {
+    if (stage.id !== 2) return
+
+    const currentUrl = new URL(window.location.href)
+    if (currentUrl.searchParams.get('completed') !== 'level-1') return
+
+    currentUrl.searchParams.delete('completed')
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+  }, [levelOneCompletionArrival, stage.id])
+
+  const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneCompleted
 
   const effectiveStatus: ConsultingStage['status'] =
-    levelOneJustCompleted && stage.id === 1
+    levelOneCompleted && stage.id === 1
       ? 'completed'
-      : levelOneJustCompleted && stage.id === 2
+      : levelOneCompleted && stage.id === 2
         ? 'active'
         : isInitialLevelOneLock
           ? 'locked'
@@ -97,7 +119,7 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
 
   const isExpandedRoomImage = stage.id !== 1 && !isLocked
 
-  const isLevelTwoNewlyUnlocked = levelOneJustCompleted && stage.id === 2
+  const isLevelTwoNewlyUnlocked = levelOneCompleted && stage.id === 2
 
   const isShowingUnlockAnimation = isUnlocking && stage.id === 1
 
@@ -121,7 +143,7 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
 
   return (
     <>
-      {stage.id === 2 && <LevelCompletionCelebration show={levelOneJustCompleted} />}
+      {stage.id === 2 && <LevelCompletionCelebration show={levelOneCompletionArrival} />}
 
       <section
         id={`stage-${stage.id}`}
