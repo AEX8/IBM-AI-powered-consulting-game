@@ -1,4 +1,7 @@
 import Phaser from 'phaser'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { getClientAuth } from '@/lib/firebase/client'
+import { getSessionsCollection } from '@/lib/firebase/firestore'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   ClientDialogueController,
@@ -155,9 +158,9 @@ export class LevelOneScene extends Phaser.Scene {
         this.controlsEnabled = true
       },
 
-      onClientCompleted: (client) => {
-        this.handleClientCompleted(client)
-      },
+      onClientCompleted: (client, coveredInfoPoints) => {
+  this.handleClientCompleted(client, coveredInfoPoints)
+},
     })
 
     this.startArrivalSequence()
@@ -1097,8 +1100,40 @@ export class LevelOneScene extends Phaser.Scene {
     this.managerPanel = undefined
   }
 
-  private handleClientCompleted(client: ClientDefinition): void {
+  private handleClientCompleted(
+  client: ClientDefinition,
+  coveredInfoPoints: string[]
+): void {
+    const leadScore = Math.min(100, coveredInfoPoints.length * 15)
+
+const relationshipState: 'cold' | 'warm' | 'qualified' =
+  leadScore >= 75 ? 'qualified' : leadScore >= 45 ? 'warm' : 'cold'
     this.completedClientNames.add(client.name)
+    const user = getClientAuth().currentUser
+    if (user && client.personaId) {
+  const sessionRef = doc(
+    getSessionsCollection(),
+    `${user.uid}_${client.personaId}_level1`
+  )
+
+  void setDoc(
+    sessionRef,
+    {
+      id: sessionRef.id,
+      uid: user.uid,
+      personaId: client.personaId,
+      level: 1,
+      status: 'completed',
+      leadScore,
+      relationshipState,
+      messages: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      _schemaVersion: 1,
+    },
+    { merge: true }
+  )
+}
     this.completedClients.set(client.name, {
       name: client.name,
       personaId: client.personaId,

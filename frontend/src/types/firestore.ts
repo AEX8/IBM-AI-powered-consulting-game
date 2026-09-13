@@ -65,6 +65,8 @@ export interface ConsultingSession {
   personaId: string
   level: 1 | 2
   status: 'active' | 'completed'
+  leadScore?: number
+  relationshipState?: 'cold' | 'warm' | 'qualified'
   messages: Array<{
     role: 'player' | 'persona'
     content: string

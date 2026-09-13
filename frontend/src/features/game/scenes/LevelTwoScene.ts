@@ -616,17 +616,224 @@ export class LevelTwoScene extends Phaser.Scene {
     })
   }
 
-  private handleOutreachEmailSent(submission: OutreachEmailSubmission): void {
-    // This event is the intentional integration point for the grading card. This
-    // task stops after Send and does not fabricate a score, lunch transition,
-    // retry state, or Level 2 completion result.
-    window.dispatchEvent(
-      new CustomEvent<OutreachEmailSubmission>('level-two-email-submitted', {
-        detail: submission,
-      })
-    )
-    this.showToast(`Email sent to ${submission.client.name}`)
+  
+    private async handleOutreachEmailSent(
+  submission: OutreachEmailSubmission
+): Promise<void> {
+  window.dispatchEvent(
+    new CustomEvent<OutreachEmailSubmission>('level-two-email-submitted', {
+      detail: submission,
+    })
+  )
+
+  this.showToast(`Email sent to ${submission.client.name}`)
+
+  this.closeLaptopOverlay()
+  const lunchOverlay = this.showLunchBreakOverlay()
+
+  try {
+    const response = await fetch('/api/outreach/grade', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: `${submission.subject}\n\n${submission.body}`,
+        persona: {
+          name: submission.client.name,
+          personaId: submission.client.personaId ?? null,
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Grading request failed')
+    }
+
+    const result = (await response.json()) as {
+      success?: boolean
+      score?: number
+      feedback?: string
+    }
+
+    if (
+      result.success !== true ||
+      typeof result.score !== 'number' ||
+      typeof result.feedback !== 'string'
+    ) {
+      throw new Error('Invalid grading response')
+    }
+
+    lunchOverlay.destroy(true)
+
+    this.showOutreachResult(result.score, result.feedback)
+  } catch (error) {
+    console.error('Level 2 outreach grading failed:', error)
+
+    lunchOverlay.destroy(true)
+    this.showToast('Unable to grade the email. Please try again.')
+    this.openLaptopOverlay()
   }
+}
+  private showLunchBreakOverlay(): Phaser.GameObjects.Container {
+  const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
+
+  const background = this.add.rectangle(
+    WORLD_WIDTH / 2,
+    WORLD_HEIGHT / 2,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    0xead4b2,
+    1
+  )
+
+  const title = this.add
+    .text(WORLD_WIDTH / 2, 150, 'Lunch Break', {
+      fontFamily: 'Arial',
+      fontSize: '42px',
+      color: '#1f1f1f',
+      fontStyle: 'bold',
+    })
+    .setOrigin(0.5)
+
+  const clock = this.add
+    .circle(WORLD_WIDTH / 2, 350, 120, 0xf4f7f9)
+    .setStrokeStyle(14, 0x2c2c2a)
+
+  const hourHand = this.add
+    .rectangle(WORLD_WIDTH / 2, 345, 8, 90, 0x1f1f1f)
+    .setOrigin(0.5, 1)
+
+  const minuteHand = this.add
+    .rectangle(WORLD_WIDTH / 2, 350, 85, 8, 0x1f1f1f)
+    .setOrigin(0, 0.5)
+
+  const progressBg = this.add
+    .rectangle(WORLD_WIDTH / 2, 570, 340, 34, 0xd9d9d9)
+    .setStrokeStyle(3, 0x1f1f1f)
+
+  const progress = this.add
+    .rectangle(WORLD_WIDTH / 2 - 167, 570, 0, 30, 0x6f9e57)
+    .setOrigin(0, 0.5)
+
+  overlay.add([
+    background,
+    title,
+    clock,
+    hourHand,
+    minuteHand,
+    progressBg,
+    progress,
+  ])
+
+ 
+  this.cameras.main.ignore(overlay)
+
+  this.tweens.add({
+    targets: progress,
+    width: 334,
+    duration: 1800,
+    ease: 'Linear',
+  })
+
+  return overlay
+}
+
+
+
+private showOutreachResult(score: number, feedback: string): void {
+  const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
+
+  const background = this.add.rectangle(
+    WORLD_WIDTH / 2,
+    WORLD_HEIGHT / 2,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    0xcfe8f5,
+    1
+  )
+
+  const panel = this.add
+    .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 560, 430, 0xffffff)
+    .setStrokeStyle(4, 0x1f1f1f)
+
+  const scoreText = this.add
+    .text(WORLD_WIDTH / 2, 190, `${score}/6`, {
+      fontFamily: 'Arial',
+      fontSize: '64px',
+      color: '#111111',
+      fontStyle: 'bold',
+    })
+    .setOrigin(0.5)
+
+  const feedbackText = this.add
+    .text(WORLD_WIDTH / 2, 330, feedback, {
+      fontFamily: 'Arial',
+      fontSize: '22px',
+      color: '#222222',
+      align: 'center',
+      wordWrap: { width: 470 },
+    })
+    .setOrigin(0.5)
+
+  const passed = score >= 5
+
+  const resultText = this.add
+    .text(
+      WORLD_WIDTH / 2,
+      465,
+      passed
+        ? 'Congratulations, you have completed Level 2 successfully!'
+        : 'Your outreach email needs improvement.',
+      {
+        fontFamily: 'Arial',
+        fontSize: '24px',
+        color: '#1f1f1f',
+        align: 'center',
+        fontStyle: 'bold',
+      }
+    )
+    .setOrigin(0.5)
+
+  const button = this.add
+    .text(
+      WORLD_WIDTH / 2,
+      570,
+      passed ? 'Back to the lobby' : 'Try again',
+      {
+        fontFamily: 'Arial',
+        fontSize: '24px',
+        color: '#ffffff',
+        backgroundColor: '#5b8c4a',
+        padding: { x: 32, y: 14 },
+      }
+    )
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true })
+
+  button.on('pointerdown', () => {
+    overlay.destroy(true)
+
+    if (passed) {
+      window.location.href = '/dashboard'
+      return
+    }
+
+    this.openLaptopOverlay()
+  })
+
+  overlay.add([
+    background,
+    panel,
+    scoreText,
+    feedbackText,
+    resultText,
+    button,
+  ])
+
+  this.cameras.main.ignore(overlay)
+}
+
 
   private readMetClients(): MetClient[] {
     const storedClients = window.localStorage.getItem(LEVEL_ONE_MET_CLIENTS_KEY)

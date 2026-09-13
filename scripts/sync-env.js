@@ -80,7 +80,7 @@ for (const [key, value] of Object.entries(env)) {
   if (key.startsWith('NEXT_PUBLIC_')) frontendLines.push(`${key}=${value}`)
 }
 frontendLines.push(`FIREBASE_SERVICE_ACCOUNT_KEY_BASE64=${get('FIREBASE_SERVICE_ACCOUNT_KEY_BASE64')}`)
-
+frontendLines.push(`GROQ_API_KEY=${get('GROQ_API_KEY')}`)
 // ── backend/.env ─────────────────────────────────────────────────────
 const backendLines = [
   header('read by the Firebase Functions CLI'),

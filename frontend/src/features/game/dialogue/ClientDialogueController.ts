@@ -28,7 +28,7 @@ type ClientDialogueControllerOptions = {
   worldHeight: number
   onOpen: () => void
   onClose: () => void
-  onClientCompleted: (client: ClientDefinition) => void
+  onClientCompleted: (client: ClientDefinition, coveredInfoPoints: string[]) => void
 }
 
 const INTERACTION_DISTANCE = 185
@@ -46,9 +46,11 @@ export class ClientDialogueController {
   private readonly worldHeight: number
 
   private readonly onOpen: () => void
-  private readonly onClose: () => void
-  private readonly onClientCompleted: (client: ClientDefinition) => void
-
+private readonly onClose: () => void
+private readonly onClientCompleted: (
+  client: ClientDefinition,
+  coveredInfoPoints: string[]
+) => void
   private readonly interactionKey: Phaser.Input.Keyboard.Key
   private readonly proximityPrompt: Phaser.GameObjects.Container
 
@@ -348,7 +350,7 @@ export class ClientDialogueController {
       // aligned with what the player has actually finished viewing.
       if (conversationComplete) {
         if (!requestInProgress) {
-          this.closeDialogue()
+          this.closeDialogue([...coveredInfoPoints])
         }
         return
       }
@@ -472,7 +474,7 @@ export class ClientDialogueController {
     this.effects.addButtonHover(sendButton)
   }
 
-  private closeDialogue(): void {
+  private closeDialogue(coveredInfoPoints: string[] = []): void {
     const completedClient = this.activeConversationCompleted ? this.activeClient : undefined
 
     this.replyInput?.destroy()
@@ -497,8 +499,8 @@ export class ClientDialogueController {
       this.onClose()
 
       if (completedClient) {
-        this.onClientCompleted(completedClient)
-      }
+  this.onClientCompleted(completedClient, coveredInfoPoints)
+}
     })
   }
 }
