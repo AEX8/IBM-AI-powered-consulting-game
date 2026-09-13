@@ -363,8 +363,7 @@ export class ClientDialogueController {
       .setScrollFactor(0)
       .setDepth(6590)
       .setVisible(Boolean(initialHint))
-    const hintTextElement =
-      hintCard.node.querySelector<HTMLSpanElement>('[data-client-hint-text]')
+    const hintTextElement = hintCard.node.querySelector<HTMLSpanElement>('[data-client-hint-text]')
 
     if (hintTextElement && initialHint) {
       hintTextElement.textContent = initialHint

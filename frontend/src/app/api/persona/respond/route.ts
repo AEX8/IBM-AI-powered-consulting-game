@@ -31,7 +31,11 @@ function protectAgainstTruncatedReply(content: unknown, finishReason: unknown): 
 
   // A length stop means the provider ended generation at the token ceiling. Keep
   // only a complete sentence so the dialogue never displays a broken final phrase.
-  const finalSentenceEnd = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('!'), reply.lastIndexOf('?'))
+  const finalSentenceEnd = Math.max(
+    reply.lastIndexOf('.'),
+    reply.lastIndexOf('!'),
+    reply.lastIndexOf('?')
+  )
 
   return finalSentenceEnd >= 0
     ? reply.slice(0, finalSentenceEnd + 1).trim()
