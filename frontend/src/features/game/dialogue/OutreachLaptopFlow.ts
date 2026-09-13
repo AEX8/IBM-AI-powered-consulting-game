@@ -283,7 +283,9 @@ export function createOutreachLaptopFlow(
     // createFromHTML initially measures an empty wrapper. Re-measure after every
     // state render so Phaser centres the complete interface instead of treating its
     // top-left corner as the origin and pushing the laptop off-screen.
-    gameObject.updateSize()
+    if (gameObject.node) {
+  gameObject.updateSize()
+}
     // The sent screen contains both the persistent × and a Return to office
     // button. Bind every close control rather than only the first match so either
     // exit returns the player to the office and restores normal room controls.
