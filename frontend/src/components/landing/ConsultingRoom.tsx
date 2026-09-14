@@ -16,6 +16,9 @@ const LEVEL_ONE_UNLOCK_KEY = 'ibm-level-one-unlocked'
 const LEVEL_ONE_UNLOCK_EVENT = 'ibm-level-one-unlocked'
 const LEVEL_ONE_COMPLETION_KEY = 'ibm-level-one-completed'
 const LEVEL_ONE_COMPLETION_EVENT = 'ibm-level-one-completed'
+const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
+const LEVEL_TWO_COMPLETION_EVENT = 'ibm-level-two-completed'
+const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 
 const subscribeToLevelOneCompletion = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -36,6 +39,24 @@ const readLevelOneCompletion = () => {
 
 const readLevelOneCompletionArrival = () =>
   new URLSearchParams(window.location.search).get('completed') === 'level-1'
+
+const subscribeToLevelTwoCompletion = (onStoreChange: () => void) => {
+  window.addEventListener('storage', onStoreChange)
+  window.addEventListener(LEVEL_TWO_COMPLETION_EVENT, onStoreChange)
+
+  return () => {
+    window.removeEventListener('storage', onStoreChange)
+    window.removeEventListener(LEVEL_TWO_COMPLETION_EVENT, onStoreChange)
+  }
+}
+
+const readLevelTwoCompletion = () =>
+  new URLSearchParams(window.location.search).get('completed') === 'level-2' ||
+  window.localStorage.getItem(LEVEL_TWO_COMPLETION_KEY) === 'true'
+
+const readLevelTwoCompletionArrival = () =>
+  new URLSearchParams(window.location.search).get('completed') === 'level-2' ||
+  window.sessionStorage.getItem(LEVEL_TWO_CELEBRATION_KEY) === 'true'
 
 const subscribeToLevelOneUnlock = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -82,6 +103,18 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
     () => false
   )
 
+  const levelTwoCompleted = useSyncExternalStore(
+    subscribeToLevelTwoCompletion,
+    readLevelTwoCompletion,
+    () => false
+  )
+
+  const levelTwoCompletionArrival = useSyncExternalStore(
+    subscribeToLevelTwoCompletion,
+    readLevelTwoCompletionArrival,
+    () => false
+  )
+
   const levelOneUnlocked = useSyncExternalStore(
     subscribeToLevelOneUnlock,
     readLevelOneUnlock,
@@ -101,13 +134,48 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
     window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
   }, [levelOneCompletionArrival, stage.id])
 
+  useEffect(() => {
+    if (stage.id !== 3) return
+
+    const currentUrl = new URL(window.location.href)
+    const arrivedFromLevelTwo = currentUrl.searchParams.get('completed') === 'level-2'
+    const hasPendingCelebration =
+      window.sessionStorage.getItem(LEVEL_TWO_CELEBRATION_KEY) === 'true'
+
+    if (!arrivedFromLevelTwo && !hasPendingCelebration) return
+
+    // Keep the arrival state alive for the full animation. The Level 2 scene stores
+    // this session flag before navigation, so the celebration cannot be lost while
+    // the dashboard hydrates or while the one-use query parameter is being cleaned up.
+    const cleanupTimer = window.setTimeout(() => {
+      window.sessionStorage.removeItem(LEVEL_TWO_CELEBRATION_KEY)
+
+      if (arrivedFromLevelTwo) {
+        currentUrl.searchParams.delete('completed')
+        window.history.replaceState(
+          {},
+          '',
+          `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+        )
+      }
+
+      window.dispatchEvent(new Event(LEVEL_TWO_COMPLETION_EVENT))
+    }, 5400)
+
+    return () => window.clearTimeout(cleanupTimer)
+  }, [levelTwoCompletionArrival, stage.id])
+
   const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneCompleted
 
   const effectiveStatus: ConsultingStage['status'] =
-    levelOneCompleted && stage.id === 1
+    (levelOneCompleted || levelTwoCompleted) && stage.id === 1
       ? 'completed'
-      : levelOneCompleted && stage.id === 2
-        ? 'active'
+      : levelTwoCompleted && stage.id === 2
+        ? 'completed'
+        : levelTwoCompleted && stage.id === 3
+          ? 'active'
+          : levelOneCompleted && stage.id === 2
+            ? 'active'
         : isInitialLevelOneLock
           ? 'locked'
           : stage.status
@@ -119,7 +187,8 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
 
   const isExpandedRoomImage = stage.id !== 1 && !isLocked
 
-  const isLevelTwoNewlyUnlocked = levelOneCompleted && stage.id === 2
+  const isNextLevelUnlocked =
+    (levelOneCompleted && stage.id === 2) || (levelTwoCompleted && stage.id === 3)
 
   const isShowingUnlockAnimation = isUnlocking && stage.id === 1
 
@@ -144,6 +213,9 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
   return (
     <>
       {stage.id === 2 && <LevelCompletionCelebration show={levelOneCompletionArrival} />}
+      {stage.id === 3 && (
+        <LevelCompletionCelebration show={levelTwoCompletionArrival} completedLevel={2} />
+      )}
 
       <section
         id={`stage-${stage.id}`}
@@ -153,7 +225,7 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
             ? 'game-room-active cursor-pointer bg-[#ffdda3]'
             : 'game-room-locked cursor-not-allowed bg-white'
         } ${isCompleted ? 'ring-8 ring-[#5b8c4a]/55' : ''} ${
-          isLevelTwoNewlyUnlocked || isShowingUnlockAnimation
+          isNextLevelUnlocked || isShowingUnlockAnimation
             ? 'z-10 shadow-[0_0_38px_rgba(201,138,62,0.85)] ring-8 ring-[#c98a3e]'
             : ''
         }`}
@@ -216,7 +288,11 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
                     : 'bg-dark-blue hover:bg-building-near'
                 }`}
               >
-                {isCompleted ? 'REPLAY' : isLevelTwoNewlyUnlocked ? 'ENTER LEVEL 2' : 'START HERE'}
+                {isCompleted
+                  ? 'REPLAY'
+                  : isNextLevelUnlocked
+                    ? `ENTER LEVEL ${stage.id}`
+                    : 'START HERE'}
               </Link>
             ) : (
               <p className="text-charcoal mt-1 max-w-48 text-[11px] leading-4">
