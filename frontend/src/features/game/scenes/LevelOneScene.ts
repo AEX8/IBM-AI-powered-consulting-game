@@ -1431,11 +1431,11 @@ const relationshipState: 'cold' | 'warm' | 'qualified' =
       window.location.reload()
     })
 
-    const quit = this.createMenuButton(WORLD_WIDTH / 2 + 215, WORLD_HEIGHT / 2 + 15, 'Quit', () => {
+    const home = this.createMenuButton(WORLD_WIDTH / 2 + 215, WORLD_HEIGHT / 2 + 15, 'Home', () => {
       window.location.assign('/dashboard')
     })
 
-    menu.add([dimmer, panel, topStrip, resume, restart, quit])
+    menu.add([dimmer, panel, topStrip, resume, restart, home])
 
     this.cameras.main.ignore(menu)
     this.menuPanel = menu
