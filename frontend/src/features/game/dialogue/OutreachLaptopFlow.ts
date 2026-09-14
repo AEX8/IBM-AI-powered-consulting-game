@@ -74,6 +74,65 @@ function detailsFor(client: OutreachClient) {
   )
 }
 
+const CLIENT_BRIEFS: Record<
+  string,
+  { businessNeed: string; impact: string; desiredOutcome: string }
+> = {
+  'test-level-1': {
+    businessNeed: 'ACMD Manufacturing is experiencing supply-chain delays caused by disconnected systems and limited operational visibility.',
+    impact: 'The delays are causing missed delivery targets and customer compensation while the business continues to grow.',
+    desiredOutcome: 'Sarah wants better operational visibility without a disruptive, long-term replacement of every existing system.',
+  },
+  'test-level-2': {
+    businessNeed: 'Customer information is split across store, online, mobile and loyalty systems, so teams do not share one reliable customer view.',
+    impact: 'The fragmented data prevents dependable churn, customer and promotion analysis as the company prepares to expand.',
+    desiredOutcome: 'David wants a practical solution that unifies the customer view and demonstrates value quickly.',
+  },
+}
+
+/**
+ * Checks for common outreach building blocks while the player types. This is
+ * intentionally only writing guidance: Groq still assesses whether the final
+ * email uses these elements meaningfully and awards the actual score.
+ */
+function emailChecklist(body: string, subject: string, client: OutreachClient) {
+  const content = `${subject} ${body}`.toLowerCase()
+  const clientDetails = detailsFor(client)
+  const firstName = client.name.split(' ')[0]?.toLowerCase() ?? ''
+
+  return [
+    { label: 'Add a greeting', complete: /\b(hi|hello|dear|good morning|good afternoon)\b/i.test(body) },
+    {
+      label: 'Mention the client or company',
+      complete:
+        (firstName.length > 0 && content.includes(firstName)) ||
+        content.includes(clientDetails.company.toLowerCase()),
+    },
+    {
+      label: 'Reference their business need',
+      complete:
+        /\b(problem|challenge|priority|operation|customer|data|system|inventory|delay|visibility)\w*\b/i.test(
+          content
+        ),
+    },
+    {
+      label: 'Explain the proposed value',
+      complete:
+        /\b(help|improve|connect|integrat|solution|enable|reduce|streamline|support|value)\w*\b/i.test(
+          content
+        ),
+    },
+    {
+      label: 'Include a clear next step',
+      complete: /\b(meeting|call|discuss|available|availability|next week|follow up)\b/i.test(content),
+    },
+    {
+      label: 'Add a professional sign-off',
+      complete: /\b(kind regards|regards|sincerely|best|thank you|thanks)\b/i.test(body),
+    },
+  ]
+}
+
 /**
  * Builds the interactive content displayed inside the Level 2 laptop frame.
  *
@@ -89,6 +148,8 @@ export function createOutreachLaptopFlow(
   let selectedClient: OutreachClient | undefined
   let emailCopied = false
   let furthestProgressIndex = 0
+  let pendingSubmission: OutreachEmailSubmission | undefined
+  let submissionStarted = false
 
   const gameObject = scene.add
     .dom(720, 360)
@@ -124,10 +185,11 @@ export function createOutreachLaptopFlow(
       .join('')
   }
 
-  const shell = (content: string, action = ''): string => `
+  const shell = (content: string, action = '', laptopAction = '', screenAction = ''): string => `
     <style>
       .l2-shell{width:1320px;height:620px;display:grid;grid-template-columns:830px 450px;align-items:start;gap:40px;background:transparent;font-family:Arial,sans-serif;color:#2c2c2a;box-sizing:border-box}
-      .l2-laptop{position:relative;height:570px;filter:drop-shadow(0 22px 24px #0007)}
+      .l2-shell,.l2-shell *{cursor:default}.l2-shell input,.l2-shell textarea{cursor:text;caret-color:#111}.l2-shell button:not(:disabled),.l2-shell [data-client]{cursor:pointer}
+      .l2-laptop{position:relative;height:610px;filter:drop-shadow(0 22px 24px #0007)}
       .l2-screen{position:relative;height:535px;border:18px solid #18191a;border-bottom-width:25px;border-radius:18px 18px 7px 7px;background:#18191a;box-sizing:border-box}
       .l2-screen::before{content:"";position:absolute;z-index:8;top:-12px;left:50%;width:8px;height:8px;transform:translateX(-50%);border-radius:50%;background:#62676b;box-shadow:0 0 0 2px #080808}
       .l2-display{position:relative;width:100%;height:100%;overflow:hidden;background:#f4f7f9}
@@ -137,8 +199,8 @@ export function createOutreachLaptopFlow(
       .l2-side-head{height:88px;flex:0 0 88px;background:#b98900;border-bottom:5px solid #1f1f1f}
       .l2-side-body{display:flex;min-height:0;flex:1;flex-direction:column;margin:0 10px 10px;padding:28px 26px 22px;background:#f4f7f9}
       .l2-tasks{display:flex;flex-direction:column;gap:17px;margin:0;padding:0;list-style:none}
-      .l2-task{display:flex;color:#81868a}.l2-task button{display:flex;width:100%;align-items:center;gap:13px;border:0;background:transparent;padding:0;color:inherit;font:700 17px Arial,sans-serif;text-align:left}.l2-task button:not(:disabled){cursor:pointer}.l2-task button:disabled{cursor:default}
-      .l2-task span{display:grid;width:38px;height:38px;place-items:center;border:3px solid #8d9296;border-radius:50%;background:#fff}
+      .l2-task{display:flex;color:#81868a}.l2-task button{display:flex;width:100%;align-items:center;gap:11px;border:0;background:transparent;padding:0;color:inherit;font:700 15px Arial,sans-serif;text-align:left}.l2-task button:not(:disabled){cursor:pointer}.l2-task button:disabled{cursor:default}
+      .l2-task span{display:grid;width:32px;height:32px;place-items:center;border:3px solid #8d9296;border-radius:50%;background:#fff}
       .l2-task.active{color:#1f4f78}.l2-task.active span{border-color:#1f4f78;background:#d9effa}.l2-task.done{color:#547c48}.l2-task.done span{border-color:#547c48;background:#e2efde}
       .l2-action{margin-top:auto;min-height:70px}.l2-button{border:3px solid #2c2c2a;border-radius:10px;background:#5b8c4a;color:#fff;padding:13px 20px;font-size:17px;font-weight:700;box-shadow:5px 6px 0 #2c2c2a;cursor:pointer}.l2-button:hover{transform:translateY(-2px)}.l2-button:disabled{border-color:#c8b998;background:#efe1c7;color:#96999c;box-shadow:none;cursor:not-allowed}
       .l2-close{position:absolute;right:14px;top:12px;z-index:5;width:42px;height:42px;border:3px solid #2c2c2a;border-radius:50%;background:#fff;font-size:27px;cursor:pointer}
@@ -147,9 +209,11 @@ export function createOutreachLaptopFlow(
       .l2-browser{height:100%;background:#fff}.l2-browser-top{height:51px;border-bottom:1px solid #aeb4b8;background:#eef1f3}.l2-browserbar{display:flex;align-items:center;gap:12px;border-bottom:1px solid #aeb4b8;background:#eef1f3;padding:9px 18px;color:#6f7579;font-size:20px}.l2-url,.l2-input{width:100%;border:1px solid #9da4aa;border-radius:22px;background:#fff;padding:10px 16px;font-size:15px;box-sizing:border-box}.l2-tabs{height:30px;border-bottom:1px solid #c2c7ca;background:#eef1f3;background-image:repeating-linear-gradient(90deg,transparent 0 90px,#899095 90px 92px)}
       .l2-google{display:flex;height:360px;flex-direction:column;align-items:center;justify-content:center}.l2-google-logo{margin-bottom:28px;font-size:70px;font-weight:600;letter-spacing:-6px}.g-blue{color:#4285f4}.g-red{color:#ea4335}.g-yellow{color:#fbbc05}.g-green{color:#34a853}.l2-searchbox{display:flex;width:545px;align-items:center;gap:13px;border:1px solid #d7dadd;border-radius:28px;background:#fff;padding:5px 9px 5px 17px;box-shadow:0 2px 7px #0002}.l2-searchbox .l2-input{border:0;padding:9px 0;outline:0}.l2-search-icon{border:0;background:none;font-size:19px;cursor:pointer}.l2-search-tools{display:flex;gap:8px;color:#4e5357;font-size:18px}.l2-shortcuts{display:flex;max-width:570px;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:25px}.l2-chip{border:1px solid #d5d9dc;border-radius:20px;background:#f7f8f9;padding:8px 14px;color:#62676b;font-size:13px}.l2-chip:disabled{cursor:default;opacity:.78}
       .l2-results{height:100%;background:#fff}.l2-results-head{padding:15px 28px 8px;border-bottom:1px solid #e0e3e5}.l2-results-search{display:flex;align-items:center;gap:12px}.l2-mini-logo{font-size:22px;font-weight:700}.l2-results-search .l2-input{max-width:520px;box-shadow:0 1px 5px #0002}.l2-result-tabs{display:flex;gap:25px;margin:12px 0 0 42px;color:#63686c;font-size:13px}.l2-result-tabs strong{border-bottom:3px solid #1a73e8;padding-bottom:9px;color:#1a73e8}.l2-results-body{padding:20px 70px}.l2-result{display:block;width:570px;border:0;background:#fff;padding:0;text-align:left;cursor:pointer}.l2-result:hover h3{text-decoration:underline}.l2-result-source{display:flex;align-items:center;gap:9px;color:#42464a;font-size:13px}.l2-li-badge{display:grid;width:24px;height:24px;place-items:center;border-radius:3px;background:#0a66c2;color:#fff;font-weight:800}.l2-result h3{margin:7px 0;color:#1a0dab;font-size:20px;font-weight:500}.l2-result p{margin:6px 0;color:#4f5356;font-size:14px;line-height:1.45}.l2-sitelinks{display:grid;width:520px;grid-template-columns:1fr 1fr;gap:0 32px;margin-top:18px}.l2-sitelinks div{border-top:1px solid #d7dadd;padding:10px 0;color:#1a0dab;font-size:13px}
-      .l2-linkedin{height:100%;background:#f3f2ef}.l2-li-nav{display:flex;height:54px;align-items:center;gap:20px;border-bottom:1px solid #d7d7d7;background:#fff;padding:0 20px;color:#666;font-size:20px}.l2-li-logo{display:grid;width:32px;height:32px;place-items:center;border-radius:3px;background:#0a66c2;color:#fff;font-size:23px;font-weight:800}.l2-li-search{width:230px;border:0;border-radius:4px;background:#eef3f8;padding:10px}.l2-li-spacer{flex:1}.l2-li-icon{display:flex;flex-direction:column;align-items:center;font-size:18px}.l2-li-icon small{font-size:9px}.l2-cover{height:145px;border-bottom:1px solid #ddd;background-color:#82b8d3;background-image:linear-gradient(165deg,transparent 55%,#556f78 56% 60%,transparent 61%),linear-gradient(15deg,transparent 48%,#c5d3d5 49% 54%,transparent 55%),linear-gradient(90deg,#2f657d 0 9%,transparent 9% 15%,#477c90 15% 24%,transparent 24% 32%,#315c70 32% 43%,transparent 43% 50%,#5e8998 50% 62%,transparent 62% 70%,#3d7186 70% 82%,transparent 82%);background-size:100% 100%;box-shadow:inset 0 -28px 35px #f2a44a66}.l2-cover.alt{background-color:#a3c7d6;background-image:linear-gradient(160deg,transparent 54%,#6e817e 55% 59%,transparent 60%),linear-gradient(20deg,transparent 50%,#d9c8a5 51% 55%,transparent 56%),linear-gradient(90deg,#557f86 0 12%,transparent 12% 19%,#8a745e 19% 29%,transparent 29% 38%,#547681 38% 49%,transparent 49% 58%,#917b68 58% 72%,transparent 72% 81%,#4d7680 81%)}.l2-profile{position:relative;margin:0 18px;background:#fff;padding:70px 24px 22px}.l2-profile img{position:absolute;top:-78px;width:140px;height:140px;border:6px solid #fff;border-radius:50%;background:#e6e7e8;object-fit:contain}.l2-profile h2{margin:0;font-size:26px}.l2-profile p{margin:6px 0;color:#61666a}.l2-profile-actions{display:flex;gap:10px;margin-top:18px}.l2-message{border:0;border-radius:18px;background:#0a66c2;color:#fff;padding:8px 17px;font-weight:700}.l2-more{border:1px solid #666;border-radius:18px;background:#fff;padding:7px 17px}.l2-link{border:0;background:none;color:#0a66c2;font-size:16px;font-weight:700;cursor:pointer}
+      .l2-linkedin{height:100%;background:#f3f2ef}.l2-li-nav{display:flex;height:54px;align-items:center;gap:20px;border-bottom:1px solid #d7d7d7;background:#fff;padding:0 20px;color:#666;font-size:20px}.l2-li-logo{display:grid;width:32px;height:32px;place-items:center;border-radius:3px;background:#0a66c2;color:#fff;font-size:23px;font-weight:800}.l2-li-search{width:230px;border:0;border-radius:4px;background:#eef3f8;padding:10px}.l2-li-spacer{flex:1}.l2-li-icon{display:flex;flex-direction:column;align-items:center;font-size:18px}.l2-li-icon small{font-size:9px}.l2-cover{height:145px;border-bottom:1px solid #ddd;background-color:#82b8d3;background-image:linear-gradient(165deg,transparent 55%,#556f78 56% 60%,transparent 61%),linear-gradient(15deg,transparent 48%,#c5d3d5 49% 54%,transparent 55%),linear-gradient(90deg,#2f657d 0 9%,transparent 9% 15%,#477c90 15% 24%,transparent 24% 32%,#315c70 32% 43%,transparent 43% 50%,#5e8998 50% 62%,transparent 62% 70%,#3d7186 70% 82%,transparent 82%);background-size:100% 100%;box-shadow:inset 0 -28px 35px #f2a44a66}.l2-cover.alt{background-color:#a3c7d6;background-image:linear-gradient(160deg,transparent 54%,#6e817e 55% 59%,transparent 60%),linear-gradient(20deg,transparent 50%,#d9c8a5 51% 55%,transparent 56%),linear-gradient(90deg,#557f86 0 12%,transparent 12% 19%,#8a745e 19% 29%,transparent 29% 38%,#547681 38% 49%,transparent 49% 58%,#917b68 58% 72%,transparent 72% 81%,#4d7680 81%)}.l2-profile{position:relative;margin:0 18px;background:#fff;padding:70px 24px 22px}.l2-profile img{position:absolute;top:-78px;width:140px;height:140px;border:6px solid #fff;border-radius:50%;background:#e6e7e8;object-fit:contain}.l2-profile h2{margin:0;font-size:26px}.l2-profile p{margin:6px 0;color:#61666a}.l2-profile-actions{display:flex;gap:10px;margin-top:18px}.l2-message{border:0;border-radius:18px;background:#0a66c2;color:#fff;padding:8px 17px;font-weight:700}.l2-more{border:1px solid #666;border-radius:18px;background:#fff;padding:7px 17px}.l2-link{border:0;background:none;color:#0a66c2;font-size:16px;font-weight:700;cursor:pointer}.l2-contact-coach{position:absolute;right:28px;top:68px;display:flex;align-items:center;gap:7px;border:2px solid #2c2c2a;border-radius:10px;background:#fff4d6;padding:8px 12px;color:#1f4f78;font-size:13px;font-weight:800;box-shadow:3px 3px 0 #2c2c2a55;pointer-events:none}.l2-contact-coach span{font-size:20px;animation:l2-guide-bob .7s ease-in-out infinite alternate}
       .l2-modal-backdrop{position:absolute;inset:0;display:grid;place-items:center;background:#0009}.l2-modal{position:relative;width:520px;border-radius:18px;background:#fff;padding:28px;box-shadow:0 15px 45px #0006}.l2-modal h2{margin-top:0}.l2-detail{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:10px 0;border-bottom:1px solid #ddd}.l2-detail strong{color:#1f4f78}
-      .l2-compose-wrap{height:100%;padding:58px 20px 18px;background:#eef1f3;box-sizing:border-box}.l2-compose{position:relative;height:400px;border:1px solid #777;border-radius:18px;background:#fff;box-shadow:0 5px 15px #0003;overflow:hidden}.l2-compose-head{display:flex;height:38px;align-items:center;border-bottom:1px solid #777;background:#dedede;padding:0 14px;font-weight:600}.l2-window-controls{margin-left:auto;color:#6c7175;letter-spacing:11px}.l2-field{display:flex;align-items:center;border-bottom:1px solid #b2b7bb;margin:0 12px}.l2-field label{width:68px;padding:10px 3px}.l2-field input{flex:1;border:0;padding:10px 3px;font-size:15px;outline:0}.l2-cc-links{margin-left:auto;color:#7d8388;font-size:14px}.l2-compose textarea{width:100%;height:240px;border:0;padding:14px;font:16px/1.45 Arial;resize:none;outline:0;box-sizing:border-box}.l2-compose-send{position:absolute;right:18px;bottom:14px;border:3px solid #1f1f1f;border-radius:10px;background:#5b8c4a;color:#fff;padding:9px 28px;font-weight:700;box-shadow:3px 3px 0 #1f1f1f;cursor:pointer}
+      .l2-compose-wrap{position:relative;height:100%;padding:58px 20px 18px;background:#eef1f3;box-sizing:border-box}.l2-compose{position:relative;height:400px;border:1px solid #777;border-radius:18px;background:#fff;box-shadow:0 5px 15px #0003;overflow:hidden}.l2-compose-head{display:flex;height:38px;align-items:center;border-bottom:1px solid #777;background:#dedede;padding:0 14px;font-weight:600}.l2-window-controls{margin-left:auto;color:#6c7175;letter-spacing:11px}.l2-field{display:flex;align-items:center;border-bottom:1px solid #b2b7bb;margin:0 12px}.l2-field label{width:68px;padding:10px 3px}.l2-field input{flex:1;border:0;padding:10px 3px;font-size:15px;outline:0}.l2-cc-links{margin-left:auto;color:#7d8388;font-size:14px}.l2-compose textarea{width:100%;height:240px;border:0;padding:14px 82px 72px 14px;font:16px/1.45 Arial;resize:none;outline:0;box-sizing:border-box}.l2-email-guide{display:grid;width:100%;grid-template-columns:1fr 1fr;gap:8px 10px;border:2px solid #2c2c2a;border-radius:12px;background:#fff8e7;padding:12px;box-sizing:border-box;box-shadow:3px 3px 0 #2c2c2a33}.l2-email-guide strong{grid-column:1/-1;color:#1f4f78;font-size:14px}.l2-guide-item{display:flex;align-items:center;gap:6px;min-width:0;color:#72777b;font-size:11px;line-height:1.2}.l2-guide-item span{display:grid;width:16px;height:16px;flex:0 0 16px;place-items:center;border:2px solid #999;border-radius:50%;font-size:10px}.l2-guide-item.done{color:#3f7332;font-weight:700}.l2-guide-item.done span{border-color:#3f7332;background:#dff0d8}.l2-review-client{grid-column:1/-1;border:2px solid #1f4f78;border-radius:8px;background:#e7f2f8;padding:8px;color:#1f4f78;font-size:12px;font-weight:800}.l2-client-review{position:absolute;z-index:30;inset:35px;display:flex;align-items:center;justify-content:center;background:transparent}.l2-client-review[hidden]{display:none}.l2-client-review-card{position:relative;width:610px;border:5px solid #2c2c2a;border-radius:18px;background:#f7f1e7;padding:28px;box-sizing:border-box;box-shadow:10px 10px 0 #2c2c2a66}.l2-client-review-card h2{margin:0 0 5px;color:#1f4f78}.l2-client-review-card h3{margin:18px 0 5px;color:#8a5d00;font-size:16px}.l2-client-review-card p{margin:0;font-size:15px;line-height:1.4}.l2-client-review-card .l2-close{right:14px;top:12px}.l2-compose-send{position:absolute;z-index:6;right:16px;bottom:14px;display:grid;width:54px;height:54px;place-items:center;border:3px solid #1f1f1f;border-radius:50%;background:#5b8c4a;color:#fff;padding:0;font-size:26px;line-height:1;font-weight:700;box-shadow:3px 3px 0 #1f1f1f;cursor:pointer}
+      .l2-tasks{gap:12px}.l2-side-body{padding:22px 22px 18px}.l2-email-guide{grid-template-columns:1fr;gap:6px;padding:11px 13px;box-shadow:none}.l2-email-guide strong{grid-column:1;font-size:15px}.l2-guide-item{gap:8px;font-size:12px;line-height:1.2}.l2-guide-item span{width:17px;height:17px;flex-basis:17px;font-size:10px}.l2-laptop-action{position:absolute;top:573px;left:50%;transform:translateX(-50%);filter:none}.l2-review-client{min-width:230px;border:3px solid #2c2c2a;border-radius:10px;background:#e7f2f8;padding:10px 22px;color:#1f4f78;font-size:13px;font-weight:800;box-shadow:4px 4px 0 #2c2c2a}.l2-client-review-card{box-shadow:none!important;filter:none!important}.l2-laptop:has(.l2-client-review:not([hidden])){filter:none}
+      .l2-screen-action{position:absolute;z-index:40;right:20px;bottom:18px}.l2-screen-action:empty{display:none}.l2-screen-action .l2-compose-send{position:static}
       .l2-sent{display:grid;height:100%;place-items:center;text-align:center}.l2-sent-mark{font-size:86px;color:#5b8c4a}.l2-sent h2{font-size:32px;color:#1f4f78}.l2-sent p{max-width:500px;font-size:18px;line-height:1.5}
       /* Motion is intentionally presentation-only: it makes the workstation feel
          like part of the RPG without changing any task state or grading data. */
@@ -161,6 +225,7 @@ export function createOutreachLaptopFlow(
       @keyframes l2-logo-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
       @keyframes l2-sent-pop{0%{opacity:0;transform:scale(.45) rotate(-14deg)}70%{transform:scale(1.12) rotate(3deg)}100%{opacity:1;transform:none}}
       @keyframes l2-screen-shine{from{transform:translateX(-135%)}to{transform:translateX(135%)}}
+      @keyframes l2-guide-bob{from{transform:translateY(-3px)}to{transform:translateY(4px)}}
       .l2-laptop{transform-origin:center bottom;animation:l2-laptop-open .58s cubic-bezier(.2,.8,.2,1) both}
       .l2-side{animation:l2-panel-enter .48s .15s cubic-bezier(.2,.8,.2,1) both}
       .l2-display{animation:l2-screen-wake .46s ease-out both}
@@ -176,7 +241,7 @@ export function createOutreachLaptopFlow(
       @media (prefers-reduced-motion:reduce){.l2-shell *,.l2-shell *::before,.l2-shell *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
     </style>
     <div class="l2-shell">
-      <section class="l2-laptop"><div class="l2-screen"><div class="l2-display"><button class="l2-close" data-action="close" aria-label="Close laptop">×</button>${content}</div></div><div class="l2-base" aria-hidden="true"></div></section>
+      <section class="l2-laptop"><div class="l2-screen"><div class="l2-display"><button class="l2-close" data-action="close" aria-label="Close laptop">×</button>${content}<div class="l2-screen-action">${screenAction}</div></div></div><div class="l2-base" aria-hidden="true"></div><div class="l2-laptop-action">${laptopAction}</div></section>
       <aside class="l2-side"><div class="l2-side-head"></div><div class="l2-side-body"><ol class="l2-tasks">${renderProgress()}</ol><div class="l2-action">${action}</div></div></aside>
     </div>`
 
@@ -206,6 +271,8 @@ export function createOutreachLaptopFlow(
           if (selectedClient?.name !== nextClient?.name) {
             emailCopied = false
             furthestProgressIndex = 0
+            pendingSubmission = undefined
+            submissionStarted = false
           }
           selectedClient = nextClient
           render()
@@ -244,8 +311,12 @@ export function createOutreachLaptopFlow(
         step === 'contact'
           ? `<div class="l2-modal-backdrop"><div class="l2-modal"><button class="l2-close" data-action="close-contact" aria-label="Close contact information">×</button><h2>Contact info</h2><div class="l2-detail"><strong>Profile</strong><span>${escapeHtml(client.name)}</span></div><div class="l2-detail"><strong>Phone</strong><span>${escapeHtml(details.phone)}</span></div><div class="l2-detail"><strong>Email</strong><span>${escapeHtml(details.email)}</span></div><div class="l2-detail"><strong>Connected</strong><span>Since August 2026</span></div></div></div>`
           : ''
+      const contactCoach =
+        step === 'linkedin'
+          ? '<div class="l2-contact-coach"><span aria-hidden="true">↓</span> Click Contact Info</div>'
+          : ''
       root.innerHTML = shell(
-        `<div class="l2-linkedin"><div class="l2-li-nav"><span class="l2-li-logo">in</span><input class="l2-li-search" value="Search" readonly><span class="l2-li-spacer"></span><span class="l2-li-icon">⌂<small>Home</small></span><span class="l2-li-icon">♟<small>Network</small></span><span class="l2-li-icon">▣<small>Jobs</small></span><span class="l2-li-icon">●<small>Messaging</small></span><span class="l2-li-icon">♟<small>Me</small></span><span>▦</span></div><div class="l2-cover ${alternateCover}"></div><div class="l2-profile"><img src="/assets/characters/npcs/${portrait}" alt=""><h2>${escapeHtml(client.name)}</h2><p>${escapeHtml(details.role)} at ${escapeHtml(details.company)}</p><p>${escapeHtml(details.location)} · <button class="l2-link" data-action="contact">Contact info</button></p><div class="l2-profile-actions"><button class="l2-message" disabled>➤ Message</button><button class="l2-more" disabled>More</button></div></div>${modal}</div>`,
+        `<div class="l2-linkedin"><div class="l2-li-nav"><span class="l2-li-logo">in</span><input class="l2-li-search" value="Search" readonly><span class="l2-li-spacer"></span><span class="l2-li-icon">⌂<small>Home</small></span><span class="l2-li-icon">♟<small>Network</small></span><span class="l2-li-icon">▣<small>Jobs</small></span><span class="l2-li-icon">●<small>Messaging</small></span><span class="l2-li-icon">♟<small>Me</small></span><span>▦</span></div><div class="l2-cover ${alternateCover}"></div><div class="l2-profile"><img src="/assets/characters/npcs/${portrait}" alt=""><h2>${escapeHtml(client.name)}</h2><p>${escapeHtml(details.role)} at ${escapeHtml(details.company)}</p><p>${escapeHtml(details.location)} · <button class="l2-link" data-action="contact">Contact info</button></p>${contactCoach}<div class="l2-profile-actions"><button class="l2-message" disabled>➤ Message</button><button class="l2-more" disabled>More</button></div></div>${modal}</div>`,
         step === 'contact'
           ? `<button class="l2-button" data-action="copy">${emailCopied ? 'Email copied ✓' : 'Copy email and continue'}</button>`
           : ''
@@ -264,29 +335,71 @@ export function createOutreachLaptopFlow(
         render()
       })
     } else if (step === 'composer' && client && details) {
+      const clientBrief = CLIENT_BRIEFS[client.personaId ?? ''] ?? {
+        businessNeed: 'Review what this client told you about their most important business challenge.',
+        impact: 'Consider how the challenge affects their organisation, customers or growth.',
+        desiredOutcome: 'Explain how your proposed next step connects to the outcome they want.',
+      }
+      const checklistMarkup = emailChecklist('', '', client)
+        .map(
+          (item) =>
+            `<div class="l2-guide-item" data-guide-item><span>○</span>${escapeHtml(item.label)}</div>`
+        )
+        .join('')
       root.innerHTML = shell(
-        `<div class="l2-compose-wrap"><form class="l2-compose" data-compose><div class="l2-compose-head"><span>New Message</span><span class="l2-window-controls">—　↗　×</span></div><div class="l2-field"><label>To</label><input name="to" type="email" value="${escapeHtml(details.email)}" required><span class="l2-cc-links">Cc Bcc</span></div><div class="l2-field"><label>Cc</label><input name="cc" type="email"></div><div class="l2-field"><label>Bcc</label><input name="bcc" type="email"></div><div class="l2-field"><label>Subject</label><input name="subject" maxlength="120" required></div><textarea name="body" maxlength="3000" aria-label="Email body" placeholder="Write your outreach email…" required></textarea><button class="l2-compose-send" data-action="send" type="button">Send</button></form></div>`
+        `<div class="l2-compose-wrap"><form class="l2-compose" data-compose><div class="l2-compose-head"><span>New Message</span><span class="l2-window-controls">—　↗　×</span></div><div class="l2-field"><label>To</label><input name="to" type="email" value="${escapeHtml(details.email)}" required><span class="l2-cc-links">Cc Bcc</span></div><div class="l2-field"><label>Cc</label><input name="cc" type="email"></div><div class="l2-field"><label>Bcc</label><input name="bcc" type="email"></div><div class="l2-field"><label>Subject</label><input name="subject" maxlength="120" required></div><textarea name="body" maxlength="3000" aria-label="Email body" placeholder="Write your outreach email…" required></textarea></form><div class="l2-client-review" data-client-review hidden><article class="l2-client-review-card"><button type="button" class="l2-close" data-action="close-review" aria-label="Close client details">×</button><h2>${escapeHtml(client.name)}</h2><p>${escapeHtml(details.role)} at ${escapeHtml(details.company)}</p><h3>Business need</h3><p>${escapeHtml(clientBrief.businessNeed)}</p><h3>Business impact</h3><p>${escapeHtml(clientBrief.impact)}</p><h3>Desired outcome</h3><p>${escapeHtml(clientBrief.desiredOutcome)}</p></article></div></div>`,
+        `<aside class="l2-email-guide"><strong>Email checklist</strong>${checklistMarkup}</aside>`,
+        `<button type="button" class="l2-review-client" data-action="review-client">Review client details</button>`,
+        `<button class="l2-compose-send" data-action="send" type="button" aria-label="Send outreach email" title="Send outreach email">➤</button>`
       )
+      const form = root.querySelector<HTMLFormElement>('[data-compose]')
+      const subjectField = form?.elements.namedItem('subject') as HTMLInputElement | null
+      const bodyField = form?.elements.namedItem('body') as HTMLTextAreaElement | null
+      const updateChecklist = (): void => {
+        const checks = emailChecklist(bodyField?.value ?? '', subjectField?.value ?? '', client)
+        root.querySelectorAll<HTMLElement>('[data-guide-item]').forEach((item, index) => {
+          const complete = checks[index]?.complete === true
+          item.classList.toggle('done', complete)
+          const marker = item.querySelector('span')
+          if (marker) marker.textContent = complete ? '✓' : '○'
+        })
+      }
+      subjectField?.addEventListener('input', updateChecklist)
+      bodyField?.addEventListener('input', updateChecklist)
+      bind('[data-action="review-client"]', 'click', () => {
+        root.querySelector<HTMLElement>('[data-client-review]')?.removeAttribute('hidden')
+      })
+      bind('[data-action="close-review"]', 'click', () => {
+        root.querySelector<HTMLElement>('[data-client-review]')?.setAttribute('hidden', '')
+      })
       bind('[data-action="send"]', 'click', () => {
-        const form = root.querySelector<HTMLFormElement>('[data-compose]')
         if (!form?.reportValidity()) return
         const data = new FormData(form)
-        options.onEmailSent({
+        // Keep the completed form locally until the player explicitly begins
+        // their break. This creates a readable confirmation step instead of
+        // replacing the composer with the lunch screen the instant Send is hit.
+        pendingSubmission = {
           client,
           to: String(data.get('to') ?? ''),
           subject: String(data.get('subject') ?? ''),
           cc: String(data.get('cc') ?? ''),
           bcc: String(data.get('bcc') ?? ''),
           body: String(data.get('body') ?? ''),
-        })
+        }
+        submissionStarted = false
         step = 'sent'
         render()
       })
     } else if (step === 'sent') {
       root.innerHTML = shell(
-        `<div class="l2-sent"><div><div class="l2-sent-mark">✓</div><h2>Outreach email sent</h2><p>Your email has been submitted. The grading and lunch-break sequence will be connected in the next development card.</p></div></div>`,
-        `<button class="l2-button" data-action="close">Return to office</button>`
+        `<div class="l2-sent"><div><div class="l2-sent-mark">✓</div><h2>Email sent</h2><p>Your outreach email has been submitted and your assessment is being prepared.</p><p>Before viewing your grade, take your lunch break.</p></div></div>`,
+        `<button class="l2-button" data-action="take-break" ${submissionStarted ? 'disabled' : ''}>${submissionStarted ? 'Preparing lunch break…' : 'Take lunch break'}</button>`
       )
+      bind('[data-action="take-break"]', 'click', () => {
+        if (!pendingSubmission || submissionStarted) return
+        submissionStarted = true
+        options.onEmailSent(pendingSubmission)
+      })
     }
 
     // createFromHTML initially measures an empty wrapper. Re-measure after every
@@ -311,6 +424,14 @@ export function createOutreachLaptopFlow(
         step = control.dataset.progressStep as LaptopStep
         render()
       })
+    })
+
+    // Phaser listens for movement and interaction keys at the window level. Stop
+    // events from editable laptop controls before they reach Phaser so ordinary
+    // text—especially spaces and the interaction key "E"—is never swallowed.
+    root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((field) => {
+      field.addEventListener('keydown', (event) => event.stopPropagation())
+      field.addEventListener('keyup', (event) => event.stopPropagation())
     })
   }
 

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 
 type LevelCompletionCelebrationProps = {
   show: boolean
+  completedLevel?: 1 | 2
 }
 
 const confetti = Array.from({ length: 42 }, (_, index) => ({
@@ -15,9 +16,13 @@ const confetti = Array.from({ length: 42 }, (_, index) => ({
   colour: ['#c98a3e', '#1f4e79', '#7eb6e0', '#5b8c4a', '#f4ede1'][index % 5],
 }))
 
-export default function LevelCompletionCelebration({ show }: LevelCompletionCelebrationProps) {
+export default function LevelCompletionCelebration({
+  show,
+  completedLevel = 1,
+}: LevelCompletionCelebrationProps) {
   const [dismissed, setDismissed] = useState(false)
   const visible = show && !dismissed
+  const nextLevel = completedLevel + 1
 
   useEffect(() => {
     if (!show) {
@@ -93,15 +98,17 @@ export default function LevelCompletionCelebration({ show }: LevelCompletionCele
               </motion.div>
 
               <p className="text-dark-blue mt-7 text-sm font-extrabold tracking-[0.2em] uppercase">
-                Level 1 complete
+                Level {completedLevel} complete
               </p>
 
               <h2 className="text-charcoal mt-2 text-4xl font-extrabold sm:text-5xl">
-                Outreach unlocked!
+                {completedLevel === 1 ? 'Outreach unlocked!' : 'Meeting preparation unlocked!'}
               </h2>
 
               <p className="text-charcoal mt-4 text-lg font-semibold">
-                You found your first potential leads. Level 2 is now ready.
+                {completedLevel === 1
+                  ? 'You found your first potential leads. Level 2 is now ready.'
+                  : 'Your outreach is complete. Level 3 is now ready.'}
               </p>
 
               <motion.div
@@ -113,7 +120,7 @@ export default function LevelCompletionCelebration({ show }: LevelCompletionCele
                   delay: 1,
                 }}
               >
-                ROOM 2 OPEN
+                ROOM {nextLevel} OPEN
               </motion.div>
             </motion.section>
           </div>

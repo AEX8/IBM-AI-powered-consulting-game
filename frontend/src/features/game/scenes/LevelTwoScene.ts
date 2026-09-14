@@ -12,6 +12,8 @@ const WALKABLE_BOTTOM = 704
 const PLAYER_SPEED = 220
 const LEVEL_ONE_COMPLETION_KEY = 'ibm-level-one-completed'
 const LEVEL_ONE_MET_CLIENTS_KEY = 'ibm-level-one-met-clients'
+const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
+const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 
 type MetClient = {
   name: string
@@ -63,6 +65,7 @@ export class LevelTwoScene extends Phaser.Scene {
     this.load.image('level-two-chair', '/assets/game/level-2/furniture/level-two-chair.png')
     this.load.image('level-two-couch', '/assets/game/level-2/furniture/level-two-couch.png')
     this.load.image('level-two-plant', '/assets/game/level-2/furniture/level-two-plant.png')
+    this.load.image('level-two-lunch-scene', '/assets/game/level-2/lunch-break-scene.png')
   }
 
   create(): void {
@@ -629,7 +632,14 @@ export class LevelTwoScene extends Phaser.Scene {
   this.showToast(`Email sent to ${submission.client.name}`)
 
   this.closeLaptopOverlay()
-  const lunchOverlay = this.showLunchBreakOverlay()
+  const lunchBreak = this.showLunchBreakOverlay()
+
+  // The grading request can finish almost instantly. Keep the lunch interlude
+  // visible long enough to feel intentional, then unlock the next action only
+  // when both the animation and server response are ready.
+  const minimumBreak = new Promise<void>((resolve) => {
+    this.time.delayedCall(2200, resolve)
+  })
 
   try {
     const response = await fetch('/api/outreach/grade', {
@@ -664,66 +674,106 @@ export class LevelTwoScene extends Phaser.Scene {
       throw new Error('Invalid grading response')
     }
 
-    lunchOverlay.destroy(true)
-
-    this.showOutreachResult(result.score, result.feedback)
+    await minimumBreak
+    lunchBreak.unlockContinue('View your grade', () => {
+      lunchBreak.overlay.destroy(true)
+      this.showOutreachResult(result.score!, result.feedback!)
+    })
   } catch (error) {
     console.error('Level 2 outreach grading failed:', error)
 
-    lunchOverlay.destroy(true)
-    this.showToast('Unable to grade the email. Please try again.')
-    this.openLaptopOverlay()
+    await minimumBreak
+    lunchBreak.unlockContinue('View grade', () => {
+      lunchBreak.overlay.destroy(true)
+      this.showOutreachResult(
+        null,
+        'Your email was sent, but the grading service is currently unavailable. No score has been assigned. Please try again.'
+      )
+    })
   }
 }
-  private showLunchBreakOverlay(): Phaser.GameObjects.Container {
-  const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
+  private showLunchBreakOverlay(): {
+    overlay: Phaser.GameObjects.Container
+    unlockContinue: (label: string, onContinue: () => void) => void
+  } {
+    const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
 
-  const background = this.add.rectangle(
-    WORLD_WIDTH / 2,
-    WORLD_HEIGHT / 2,
-    WORLD_WIDTH,
-    WORLD_HEIGHT,
-    0xead4b2,
-    1
-  )
+    // The complete break room is one illustrated scene so every object shares
+    // the same perspective. It covers the world exactly, avoiding exposed side
+    // panels or assets extending beyond decorative frames at wide resolutions.
+    const background = this.add
+      .image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'level-two-lunch-scene')
+      .setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT)
 
-  const title = this.add
-    .text(WORLD_WIDTH / 2, 150, 'Lunch Break', {
-      fontFamily: 'Arial',
-      fontSize: '42px',
-      color: '#1f1f1f',
-      fontStyle: 'bold',
-    })
-    .setOrigin(0.5)
+    const panelShadow = this.add.rectangle(1190, 370, 470, 570, 0x2c2c2a, 0.92)
+    const questPanel = this.add
+      .rectangle(1180, 360, 470, 570, 0xf7f1e7, 0.97)
+      .setStrokeStyle(6, 0x2c2c2a)
+    const panelHeader = this.add.rectangle(1180, 118, 470, 86, 0xb98900)
+    const title = this.add
+      .text(1180, 118, 'LUNCH BREAK', {
+        fontFamily: 'Arial',
+        fontSize: '29px',
+        color: '#111111',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
 
-  const clock = this.add
-    .circle(WORLD_WIDTH / 2, 350, 120, 0xf4f7f9)
-    .setStrokeStyle(14, 0x2c2c2a)
+    const questTag = this.add
+      .text(980, 183, 'EMAIL DELIVERED', {
+        fontFamily: 'Arial',
+        fontSize: '17px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#1f4f78',
+        padding: { x: 14, y: 7 },
+      })
+      .setOrigin(0, 0.5)
+    const message = this.add.text(
+      970,
+      235,
+      'Nice work. Your outreach is on its way.\nTake a short break while your review\nis prepared.',
+      {
+        fontFamily: 'Arial',
+        fontSize: '22px',
+        color: '#2c2c2a',
+        lineSpacing: 8,
+      }
+    )
 
-  const hourHand = this.add
-    .rectangle(WORLD_WIDTH / 2, 345, 8, 90, 0x1f1f1f)
-    .setOrigin(0.5, 1)
-
-  const minuteHand = this.add
-    .rectangle(WORLD_WIDTH / 2, 350, 85, 8, 0x1f1f1f)
-    .setOrigin(0, 0.5)
-
-  const progressBg = this.add
-    .rectangle(WORLD_WIDTH / 2, 570, 340, 34, 0xd9d9d9)
-    .setStrokeStyle(3, 0x1f1f1f)
-
-  const progress = this.add
-    .rectangle(WORLD_WIDTH / 2 - 167, 570, 0, 30, 0x6f9e57)
-    .setOrigin(0, 0.5)
-
+    const progressBg = this.add
+      .rectangle(1180, 443, 390, 26, 0xd9d9d9)
+      .setStrokeStyle(3, 0x2c2c2a)
+    const progress = this.add.rectangle(987, 443, 0, 22, 0x6f9e57).setOrigin(0, 0.5)
+    const status = this.add
+      .text(1180, 485, 'Review in progress…', {
+        fontFamily: 'Arial',
+        fontSize: '20px',
+        color: '#5f6368',
+      })
+      .setOrigin(0.5)
+    const continueButton = this.add
+      .text(1180, 565, 'Please wait…', {
+        fontFamily: 'Arial',
+        fontSize: '24px',
+        color: '#777777',
+        fontStyle: 'bold',
+        backgroundColor: '#d9d9d9',
+        padding: { left: 48, right: 48, top: 16, bottom: 16 },
+      })
+      .setOrigin(0.5)
   overlay.add([
     background,
+    panelShadow,
+    questPanel,
+    panelHeader,
     title,
-    clock,
-    hourHand,
-    minuteHand,
+    questTag,
+    message,
     progressBg,
     progress,
+    status,
+    continueButton,
   ])
 
  
@@ -731,108 +781,312 @@ export class LevelTwoScene extends Phaser.Scene {
 
   this.tweens.add({
     targets: progress,
-    width: 334,
+    width: 386,
     duration: 1800,
     ease: 'Linear',
   })
 
-  return overlay
+  return {
+    overlay,
+    unlockContinue: (label, onContinue) => {
+      status.setText(label.toLowerCase().includes('grade') ? 'Review ready!' : 'Review update ready.')
+      continueButton
+        .setText(label)
+        .setColor('#ffffff')
+        .setBackgroundColor('#5f914f')
+        .setInteractive({ useHandCursor: true })
+        .once('pointerdown', onContinue)
+      this.tweens.add({
+        targets: continueButton,
+        scale: { from: 1, to: 1.06 },
+        yoyo: true,
+        repeat: 1,
+        duration: 180,
+      })
+    },
+  }
 }
 
 
 
-private showOutreachResult(score: number, feedback: string): void {
-  const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
-
-  const background = this.add.rectangle(
-    WORLD_WIDTH / 2,
-    WORLD_HEIGHT / 2,
-    WORLD_WIDTH,
-    WORLD_HEIGHT,
-    0xcfe8f5,
-    1
-  )
-
-  const panel = this.add
-    .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 560, 430, 0xffffff)
-    .setStrokeStyle(4, 0x1f1f1f)
-
-  const scoreText = this.add
-    .text(WORLD_WIDTH / 2, 190, `${score}/6`, {
-      fontFamily: 'Arial',
-      fontSize: '64px',
-      color: '#111111',
-      fontStyle: 'bold',
-    })
-    .setOrigin(0.5)
-
-  const feedbackText = this.add
-    .text(WORLD_WIDTH / 2, 330, feedback, {
-      fontFamily: 'Arial',
-      fontSize: '22px',
-      color: '#222222',
-      align: 'center',
-      wordWrap: { width: 470 },
-    })
-    .setOrigin(0.5)
-
-  const passed = score >= 5
-
-  const resultText = this.add
-    .text(
-      WORLD_WIDTH / 2,
-      465,
-      passed
-        ? 'Congratulations, you have completed Level 2 successfully!'
-        : 'Your outreach email needs improvement.',
-      {
+  private showOutreachResult(score: number | null, feedback: string): void {
+    const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
+    const background = this.add.rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 0x173b5b).setOrigin(0)
+    const glow = this.add.circle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 540, 0xc98a3e, 0.12)
+    const outerPanel = this.add
+      .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 1240, 630, 0xc98a3e)
+      .setStrokeStyle(8, 0x2c2c2a)
+    const panel = this.add
+      .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2 + 10, 1180, 550, 0xf7f1e7)
+      .setStrokeStyle(5, 0x2c2c2a)
+    // Keep the title strip inside the cream results panel instead of letting it
+    // overlap the outer frame at the top of the screen.
+    const header = this.add.rectangle(WORLD_WIDTH / 2, 128, 1100, 58, 0xb98900)
+    const headerText = this.add
+      .text(WORLD_WIDTH / 2, 128, 'MISSION RESULTS', {
         fontFamily: 'Arial',
-        fontSize: '24px',
-        color: '#1f1f1f',
-        align: 'center',
+        fontSize: '27px',
+        color: '#111111',
         fontStyle: 'bold',
-      }
-    )
-    .setOrigin(0.5)
+      })
+      .setOrigin(0.5)
 
-  const button = this.add
-    .text(
-      WORLD_WIDTH / 2,
-      570,
-      passed ? 'Back to the lobby' : 'Try again',
-      {
+    const scoreCard = this.add
+      .rectangle(370, 375, 390, 440, 0xe7f0f6)
+      .setStrokeStyle(5, 0x2c2c2a)
+    const stageBadge = this.add
+      .text(370, 190, 'LEVEL 2  •  OUTREACH', {
         fontFamily: 'Arial',
-        fontSize: '24px',
+        fontSize: '17px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#1f4f78',
+        padding: { x: 18, y: 9 },
+      })
+      .setOrigin(0.5)
+    const scoreRing = this.add
+      .circle(370, 330, 105, score === null ? 0xd9d9d9 : 0xfff3cf)
+      .setStrokeStyle(9, score === null ? 0x777777 : 0xb98900)
+    const scoreText = this.add
+      .text(370, 330, score === null ? 'N/A' : `${score}/6`, {
+        fontFamily: 'Arial',
+        fontSize: '55px',
+        color: '#1f4f78',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+
+    // Keep Ibrahim's scoring decision unchanged; this method only presents it.
+    const passed = score !== null && score >= 5
+    const statusText = this.add
+      .text(
+        370,
+        470,
+        score === null
+          ? 'GRADING UNAVAILABLE'
+          : passed
+            ? 'MISSION COMPLETE'
+            : 'RETRY REQUIRED',
+        {
+          fontFamily: 'Arial',
+          fontSize: '22px',
+          color: score === null ? '#6b6b6b' : passed ? '#3f7332' : '#9b442f',
+          align: 'center',
+          fontStyle: 'bold',
+        }
+      )
+      .setOrigin(0.5)
+
+    const starsEarned = score === null ? 0 : Math.max(0, Math.min(3, Math.ceil(score / 2)))
+    const stars = this.add
+      .text(370, 530, [0, 1, 2].map((index) => (index < starsEarned ? '★' : '☆')).join('  '), {
+        fontFamily: 'Arial',
+        fontSize: '43px',
+        color: '#c98a3e',
+        stroke: '#2c2c2a',
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+
+    const feedbackCard = this.add
+      .rectangle(900, 350, 620, 390, 0xffffff)
+      .setStrokeStyle(5, 0x2c2c2a)
+    const feedbackLabel = this.add
+      .text(620, 178, score === null ? 'SYSTEM UPDATE' : 'COACH FEEDBACK', {
+        fontFamily: 'Arial',
+        fontSize: '18px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: score === null ? '#6b6b6b' : '#1f4f78',
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0, 0.5)
+    const feedbackText = this.add.text(625, 238, feedback, {
+      fontFamily: 'Arial',
+      fontSize: '21px',
+      color: '#222222',
+      lineSpacing: 8,
+      wordWrap: { width: 550 },
+    })
+    const objective = this.add
+      .text(
+        900,
+        500,
+        score === null
+          ? 'No score was recorded. Retry when grading is available.'
+          : passed
+            ? 'Objective cleared. Return to the room to continue.'
+            : 'Use the feedback above and improve your outreach.',
+        {
+          fontFamily: 'Arial',
+          fontSize: '19px',
+          color: '#1f4f78',
+          align: 'center',
+          fontStyle: 'bold',
+          wordWrap: { width: 540 },
+        }
+      )
+      .setOrigin(0.5)
+    const button = this.add
+      .text(900, 600, passed ? 'Go back to room' : 'Try again', {
+        fontFamily: 'Arial',
+        fontSize: '23px',
+        fontStyle: 'bold',
         color: '#ffffff',
         backgroundColor: '#5b8c4a',
         padding: { x: 32, y: 14 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+
+    button.on('pointerdown', () => {
+      overlay.destroy(true)
+
+      if (passed) {
+        window.localStorage.setItem(LEVEL_TWO_COMPLETION_KEY, 'true')
+        this.time.delayedCall(350, () => this.showLevelThreeUnlockedPrompt())
+        return
       }
-    )
-    .setOrigin(0.5)
-    .setInteractive({ useHandCursor: true })
 
-  button.on('pointerdown', () => {
-    overlay.destroy(true)
+      this.openLaptopOverlay()
+    })
 
-    if (passed) {
-      window.location.href = '/dashboard'
-      return
-    }
+    overlay.add([
+      background,
+      glow,
+      outerPanel,
+      panel,
+      header,
+      headerText,
+      scoreCard,
+      stageBadge,
+      scoreRing,
+      scoreText,
+      statusText,
+      stars,
+      feedbackCard,
+      feedbackLabel,
+      feedbackText,
+      objective,
+      button,
+    ])
+    this.cameras.main.ignore(overlay)
 
-    this.openLaptopOverlay()
-  })
+    outerPanel.setScale(0.82).setAlpha(0)
+    panel.setScale(0.82).setAlpha(0)
+    this.tweens.add({
+      targets: [outerPanel, panel],
+      scale: 1,
+      alpha: 1,
+      duration: 520,
+      ease: 'Back.easeOut',
+    })
+    this.tweens.add({
+      targets: scoreRing,
+      scale: { from: 0.55, to: 1 },
+      angle: { from: -14, to: 0 },
+      duration: 680,
+      ease: 'Back.easeOut',
+    })
+    this.tweens.add({
+      targets: stars,
+      scale: { from: 0.65, to: 1 },
+      alpha: { from: 0, to: 1 },
+      delay: 320,
+      duration: 480,
+      ease: 'Back.easeOut',
+    })
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.06, to: 0.18 },
+      scale: { from: 0.92, to: 1.06 },
+      yoyo: true,
+      repeat: -1,
+      duration: 1400,
+    })
+  }
 
-  overlay.add([
-    background,
-    panel,
-    scoreText,
-    feedbackText,
-    resultText,
-    button,
-  ])
+  private showLevelThreeUnlockedPrompt(): void {
+    const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
+    const dimmer = this.add
+      .rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 0x17212a, 0.6)
+      .setOrigin(0)
+      .setInteractive()
+    const card = this.add
+      .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 700, 390, 0xf4f7f9)
+      .setStrokeStyle(7, 0x2c2c2a)
+    const strip = this.add.rectangle(WORLD_WIDTH / 2, 205, 700, 80, 0xb98900)
+    const star = this.add
+      .text(WORLD_WIDTH / 2, 292, '★', {
+        fontFamily: 'Arial',
+        fontSize: '72px',
+        color: '#c98a3e',
+        stroke: '#2c2c2a',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+    const title = this.add
+      .text(WORLD_WIDTH / 2, 205, 'LEVEL 2 COMPLETE', {
+        fontFamily: 'Arial',
+        fontSize: '31px',
+        color: '#111111',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+    const message = this.add
+      .text(
+        WORLD_WIDTH / 2,
+        405,
+        'Preparing for a Meeting is now unlocked.\nReturn home when you are ready to begin Level 3.',
+        {
+          fontFamily: 'Arial',
+          fontSize: '22px',
+          color: '#2c2c2a',
+          align: 'center',
+          lineSpacing: 8,
+        }
+      )
+      .setOrigin(0.5)
+    const button = this.add
+      .text(WORLD_WIDTH / 2, 520, 'Return home', {
+        fontFamily: 'Arial',
+        fontSize: '22px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        backgroundColor: '#5b8c4a',
+        padding: { x: 30, y: 14 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
 
-  this.cameras.main.ignore(overlay)
-}
+    button.on('pointerdown', () => {
+      // Preserve the one-time completion celebration across the full-page navigation.
+      // sessionStorage prevents it from replaying in a future browser session while
+      // still guaranteeing that the dashboard can render the same sequence as Level 1.
+      window.sessionStorage.setItem(LEVEL_TWO_CELEBRATION_KEY, 'true')
+      window.location.assign('/dashboard?completed=level-2')
+    })
+
+    overlay.add([dimmer, card, strip, star, title, message, button])
+    this.cameras.main.ignore(overlay)
+    card.setScale(0.65).setAlpha(0)
+    this.tweens.add({
+      targets: card,
+      scale: 1,
+      alpha: 1,
+      duration: 520,
+      ease: 'Back.easeOut',
+    })
+    this.tweens.add({
+      targets: star,
+      angle: { from: -12, to: 12 },
+      scale: { from: 0.8, to: 1.1 },
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    })
+  }
 
 
   private readMetClients(): MetClient[] {
@@ -1005,11 +1259,11 @@ private showOutreachResult(score: number, feedback: string): void {
     const restart = this.createMenuButton(WORLD_WIDTH / 2, WORLD_HEIGHT / 2 + 15, 'Restart', () => {
       window.location.reload()
     })
-    const quit = this.createMenuButton(WORLD_WIDTH / 2 + 215, WORLD_HEIGHT / 2 + 15, 'Quit', () => {
+    const home = this.createMenuButton(WORLD_WIDTH / 2 + 215, WORLD_HEIGHT / 2 + 15, 'Home', () => {
       window.location.assign('/dashboard')
     })
 
-    menu.add([dimmer, panel, topStrip, resume, restart, quit])
+    menu.add([dimmer, panel, topStrip, resume, restart, home])
     this.cameras.main.ignore(menu)
     this.menuPanel = menu
   }
