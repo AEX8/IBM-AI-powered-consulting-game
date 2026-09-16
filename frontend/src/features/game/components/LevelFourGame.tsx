@@ -1,0 +1,62 @@
+'use client'
+
+import type Phaser from 'phaser'
+import { useEffect, useRef } from 'react'
+
+const GAME_WIDTH = 1440
+const GAME_HEIGHT = 720
+
+/**
+ * Owns Level 4's Phaser lifecycle independently from the earlier rooms.
+ * This prevents navigating directly to the meeting route from creating or
+ * mutating any Level 1-3 scene state while the cross-level data work continues.
+ */
+export function LevelFourGame() {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let game: Phaser.Game | undefined
+    let cancelled = false
+
+    const startGame = async () => {
+      const PhaserRuntime = await import('phaser')
+      const { LevelFourScene } = await import('../scenes/LevelFourScene')
+
+      if (cancelled || !containerRef.current) return
+
+      game = new PhaserRuntime.Game({
+        type: PhaserRuntime.AUTO,
+        parent: containerRef.current,
+        width: GAME_WIDTH,
+        height: GAME_HEIGHT,
+        backgroundColor: '#efe1c7',
+        autoFocus: true,
+        dom: { createContainer: true },
+        physics: {
+          default: 'arcade',
+          arcade: { gravity: { x: 0, y: 0 }, debug: false },
+        },
+        scale: {
+          mode: PhaserRuntime.Scale.FIT,
+          autoCenter: PhaserRuntime.Scale.CENTER_BOTH,
+          width: GAME_WIDTH,
+          height: GAME_HEIGHT,
+        },
+        scene: LevelFourScene,
+      })
+    }
+
+    void startGame()
+
+    return () => {
+      cancelled = true
+      game?.destroy(true)
+    }
+  }, [])
+
+  return (
+    <div className="h-dvh w-screen overflow-hidden bg-[#2c2c2a]">
+      <div ref={containerRef} className="relative h-full w-full overflow-hidden" />
+    </div>
+  )
+}

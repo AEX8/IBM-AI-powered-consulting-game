@@ -4,7 +4,12 @@ export type OutreachClient = {
   name: string
   personaId?: string
   texture: string
+  portrait?: string
 }
+
+// Level 4 reads this compact handoff rather than guessing which client the player
+// chose. Keeping the portrait path also lets future clients flow through cleanly.
+export const SELECTED_OUTREACH_CLIENT_KEY = 'ibm-selected-outreach-client'
 
 export type OutreachEmailSubmission = {
   client: OutreachClient
@@ -72,6 +77,13 @@ function detailsFor(client: OutreachClient) {
       phone: '+61 3 9000 0100',
     }
   )
+}
+
+function portraitFor(client: OutreachClient): string {
+  if (client.portrait) return client.portrait
+  if (client.texture === 'good-client') return 'character-01.png'
+  if (client.texture === 'bad-client') return 'character-02.png'
+  return 'character-04.png'
 }
 
 const CLIENT_BRIEFS: Record<
@@ -256,7 +268,7 @@ export function createOutreachLaptopFlow(
     if (step === 'clients') {
       const cards = options.clients
         .map((item, index) => {
-          const portrait = item.texture === 'good-client' ? 'character-01.png' : 'character-02.png'
+          const portrait = portraitFor(item)
           const itemDetails = detailsFor(item)
           return `<button class="l2-card ${selectedClient?.name === item.name ? 'selected' : ''}" data-client="${index}"><span class="l2-portrait"><img src="/assets/characters/npcs/${portrait}" alt=""></span><span class="l2-card-copy"><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(itemDetails.role)}</p><p>${escapeHtml(itemDetails.company)}</p></span></button>`
         })
@@ -275,6 +287,13 @@ export function createOutreachLaptopFlow(
             submissionStarted = false
           }
           selectedClient = nextClient
+          if (selectedClient) {
+            const portrait = portraitFor(selectedClient)
+            window.localStorage.setItem(
+              SELECTED_OUTREACH_CLIENT_KEY,
+              JSON.stringify({ ...selectedClient, portrait })
+            )
+          }
           render()
         })
       })
@@ -305,7 +324,7 @@ export function createOutreachLaptopFlow(
         render()
       })
     } else if ((step === 'linkedin' || step === 'contact') && client && details) {
-      const portrait = client.texture === 'good-client' ? 'character-01.png' : 'character-02.png'
+      const portrait = portraitFor(client)
       const alternateCover = client.texture === 'good-client' ? '' : 'alt'
       const modal =
         step === 'contact'
