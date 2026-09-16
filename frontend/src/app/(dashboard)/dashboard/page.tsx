@@ -4,13 +4,17 @@ import { getServerSession } from '@/actions/auth.actions'
 import { adminDb } from '@/lib/firebase/admin'
 import ConsultingRoom from '@/components/landing/ConsultingRoom'
 import ProgressPanel from '@/components/landing/ProgressPanel'
+import ElevatorIntro from '@/components/auth/ElevatorIntro'
 import { consultingStages, initialConsultantProgress } from '@/components/landing/landingData'
 
 export const metadata: Metadata = {
   title: 'Consulting Lobby',
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: {
+  searchParams: Promise<{ arrival?: string }>
+}) {
+  const { arrival } = await searchParams
   const session = await getServerSession()
 
   const profileSnapshot = session ? await adminDb.collection('users').doc(session.uid).get() : null
@@ -41,6 +45,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="bg-warm-cream min-h-[calc(100dvh-4rem)] xl:h-[calc(100dvh-4rem)] xl:overflow-hidden">
+      {arrival === 'signin' && <ElevatorIntro />}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
         {[
           { left: '6%', top: '24%', size: '5px', duration: '6s', delay: '-1s' },

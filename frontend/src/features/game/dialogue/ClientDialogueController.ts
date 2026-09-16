@@ -270,10 +270,11 @@ private readonly onClientCompleted: (
       .setOrigin(0.5)
 
     const dialogueLog = this.scene.add
-      .dom(panelX, this.worldHeight / 2 + 8)
+      .dom(panelX, 132)
       .createFromHTML(
-        `<div data-client-dialogue-log role="log" aria-live="polite" style="width: 430px; height: 470px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; padding: 10px 12px 18px; box-sizing: border-box;"></div>`
+        `<div data-client-dialogue-log role="log" aria-live="polite" style="width: 430px; height: ${this.worldHeight - 322}px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; padding: 10px 12px 18px; box-sizing: border-box;"></div>`
       )
+      .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(6600)
     const logElement = dialogueLog.node.querySelector<HTMLDivElement>('[data-client-dialogue-log]')

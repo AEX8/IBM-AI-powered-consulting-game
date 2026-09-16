@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -19,6 +19,7 @@ import {
 
 export default function SignInPage() {
   const router = useRouter()
+  const signingIn = useRef(false)
   const { user, loading, signInWithEmail } = useAuth()
 
   const {
@@ -35,7 +36,7 @@ export default function SignInPage() {
    * page. This preserves the existing application behaviour.
    */
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !signingIn.current) {
       router.replace('/dashboard')
     }
   }, [loading, user, router])
@@ -53,6 +54,7 @@ export default function SignInPage() {
   }, [])
 
   const onSubmit = async (data: LoginInput) => {
+    signingIn.current = true
     try {
       /*
        * The existing Firebase implementation is intentionally preserved.
@@ -61,9 +63,10 @@ export default function SignInPage() {
       await signInWithEmail(data.email, data.password)
 
       toast.success('Signed in successfully')
-      router.replace('/dashboard')
+      router.replace('/dashboard?arrival=signin')
       router.refresh()
     } catch (error: unknown) {
+      signingIn.current = false
       if (error instanceof Error && error.message.includes('email-not-verified')) {
         toast.error('Please verify your email before signing in.')
         return
@@ -113,7 +116,7 @@ export default function SignInPage() {
             </p>
           }
         >
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4" noValidate>
             <div>
               <label htmlFor="email" className="text-charcoal mb-1.5 block text-sm font-medium">
                 Email
