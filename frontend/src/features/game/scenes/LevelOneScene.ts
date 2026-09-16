@@ -36,6 +36,7 @@ export class LevelOneScene extends Phaser.Scene {
   private effects!: LevelOneEffects
   private goodClient!: Phaser.GameObjects.Image
   private badClient!: Phaser.GameObjects.Image
+  private clientOverview?: Phaser.GameObjects.Text
 
   private clientDialogue?: ClientDialogueController
 
@@ -168,6 +169,7 @@ export class LevelOneScene extends Phaser.Scene {
 
   override update(): void {
     if (!this.player) return
+    if (this.interfaceOpen || !this.controlsEnabled) this.clientOverview?.setVisible(false)
 
     if (!this.controlsEnabled || this.interfaceOpen) {
       this.player.setVelocity(0)
@@ -357,6 +359,27 @@ export class LevelOneScene extends Phaser.Scene {
 
     this.effects.addIdleBreathing(this.goodClient, 500)
     this.effects.addIdleBreathing(this.badClient, 900)
+
+    this.clientOverview = this.add.text(0, 0, '', {
+      fontFamily: 'Arial', fontSize: '17px', color: '#2c2c2a',
+      backgroundColor: '#fff7e4', padding: { x: 16, y: 12 },
+      wordWrap: { width: 290 }, lineSpacing: 5,
+    }).setOrigin(0.5, 1).setDepth(2000).setVisible(false)
+
+    const summaries: Array<[Phaser.GameObjects.Image, string]> = [
+      [this.goodClient, 'Sarah Chen | COO\nACMD Manufacturing\nMain issue: supply-chain delays and disconnected operational data.'],
+      [this.badClient, 'David Palte | CTO\nMeridian Retail Group\nMain issue: fragmented customer data makes business decisions unreliable.'],
+    ]
+    for (const [sprite, summary] of summaries) {
+      sprite.setInteractive({ useHandCursor: true })
+      sprite.on('pointerover', () => {
+        if (this.interfaceOpen || !this.controlsEnabled) return
+        this.clientOverview?.setText(summary)
+          .setPosition(sprite.x, sprite.y - CHARACTER_HEIGHT / 2 - 12).setVisible(true)
+      })
+      sprite.on('pointerout', () => this.clientOverview?.setVisible(false))
+      sprite.on('pointerdown', () => this.clientOverview?.setVisible(false))
+    }
 
     /*
      * Clients are still visual placeholders only.
