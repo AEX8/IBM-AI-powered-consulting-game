@@ -833,3 +833,99 @@ export function getMeetingPrepClient(personaId: string) {
     (client) => client.personaId === personaId
   )
 }
+export type MeetingPrepScoreResult = {
+  objectiveScore: number
+  questionScore: number
+  totalScore: number
+  resultLabel: string
+  feedback: string[]
+}
+
+export function scoreMeetingPrep(
+  personaId: string,
+  selectedObjectives: string[],
+  selectedQuestions: string[]
+): MeetingPrepScoreResult {
+  const client = getMeetingPrepClient(personaId)
+
+  if (!client) {
+    return {
+      objectiveScore: 0,
+      questionScore: 0,
+      totalScore: 0,
+      resultLabel: SCORE_RESULTS.needsImprovement.label,
+      feedback: ['Unable to score preparation because the client was not found.'],
+    }
+  }
+
+  const selectedObjectiveResults = client.objectives.filter((objective) =>
+    selectedObjectives.includes(objective.text)
+  )
+
+  const hasCorrectObjective = selectedObjectiveResults.some(
+    (objective) => objective.isCorrect
+  )
+
+  // The objective represents the overall meeting direction.
+  // A correct objective earns the full objective portion of the six-point score.
+  const objectiveScore = hasCorrectObjective ? 3 : 0
+
+  const selectedQuestionResults = client.questions.filter((question) =>
+    selectedQuestions.includes(question.text)
+  )
+
+  const questionPoints = selectedQuestionResults.map((question) => {
+    if (question.strength === 'strong') return 1
+    if (question.strength === 'neutral') return 0.5
+    return 0
+  })
+
+  // Questions contribute a maximum of three points.
+  const questionScore = Math.min(
+    3,
+    questionPoints.reduce((total, score) => total + score, 0)
+  )
+
+  const totalScore = Math.min(6, objectiveScore + questionScore)
+
+  const resultLabel =
+    totalScore >= SCORE_RESULTS.strong.min
+      ? SCORE_RESULTS.strong.label
+      : totalScore >= SCORE_RESULTS.developing.min
+        ? SCORE_RESULTS.developing.label
+        : SCORE_RESULTS.needsImprovement.label
+
+  const feedback: string[] = []
+
+  if (hasCorrectObjective) {
+    feedback.push('The selected objective is well aligned with the client business need.')
+  } else {
+    feedback.push(
+      `Consider focusing the meeting objective on: ${client.bestObjective}`
+    )
+  }
+
+  if (client.questions.length === 0) {
+    feedback.push('No scored preparation questions are defined for this client.')
+  } else {
+    selectedQuestionResults.forEach((question) => {
+      if (question.reason) {
+        feedback.push(`${question.text} — ${question.reason}`)
+      }
+    })
+
+    if (!selectedQuestionResults.some((question) => question.strength === 'strong')) {
+      feedback.push(
+        'Consider choosing questions that explore the business problem, impact, desired outcome or consulting value.'
+      )
+    }
+  }
+
+  return {
+    objectiveScore,
+    questionScore,
+    totalScore,
+    resultLabel,
+    feedback,
+  }
+}

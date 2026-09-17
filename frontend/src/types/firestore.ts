@@ -85,6 +85,11 @@ export interface MeetingPrep {
   personaId: string
   selectedObjectives: string[]
   selectedQuestions: string[]
+  objectiveScore?: number
+questionScore?: number
+totalScore?: number
+resultLabel?: string
+feedback?: string[]
   createdAt: Timestamp
   updatedAt: Timestamp
   _schemaVersion: 1
