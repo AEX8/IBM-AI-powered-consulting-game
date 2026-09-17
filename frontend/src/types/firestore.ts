@@ -77,6 +77,19 @@ export interface ConsultingSession {
   _schemaVersion: 1
 }
 
+
+export interface MeetingPrep {
+  id: string
+  uid: string
+  sessionId: string
+  personaId: string
+  selectedObjectives: string[]
+  selectedQuestions: string[]
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  _schemaVersion: 1
+}
+
 export interface PortfolioProgress {
   id: string
   uid: string

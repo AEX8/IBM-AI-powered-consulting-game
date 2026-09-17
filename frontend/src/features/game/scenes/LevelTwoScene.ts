@@ -1,4 +1,7 @@
 import Phaser from 'phaser'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { getClientAuth } from '@/lib/firebase/client'
+import { getSessionsCollection } from '@/lib/firebase/firestore'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   createOutreachLaptopFlow,
@@ -619,6 +622,7 @@ export class LevelTwoScene extends Phaser.Scene {
     })
   }
 
+
   
     private async handleOutreachEmailSent(
   submission: OutreachEmailSubmission
@@ -628,7 +632,31 @@ export class LevelTwoScene extends Phaser.Scene {
       detail: submission,
     })
   )
+  const user = getClientAuth().currentUser
+const personaId = submission.client.personaId
 
+if (user && personaId) {
+  const sessionRef = doc(
+    getSessionsCollection(),
+    `${user.uid}_${personaId}_level2`
+  )
+
+  await setDoc(
+    sessionRef,
+    {
+      id: sessionRef.id,
+      uid: user.uid,
+      personaId,
+      level: 2,
+      status: 'completed',
+      messages: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      _schemaVersion: 1,
+    },
+    { merge: true }
+  )
+}
   this.showToast(`Email sent to ${submission.client.name}`)
 
   this.closeLaptopOverlay()

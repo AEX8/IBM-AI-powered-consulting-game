@@ -5,6 +5,7 @@ import type {
   Note,
   Persona,
   ConsultingSession,
+  MeetingPrep,
   PortfolioProgress,
 } from '@/types/firestore'
 
@@ -42,6 +43,10 @@ export function getPersonasCollection() {
 
 export function getSessionsCollection() {
   return typedCollection<ConsultingSession>('sessions')
+}
+
+export function getMeetingPrepsCollection() {
+  return typedCollection<MeetingPrep>('meetingPreps')
 }
 
 export function getPortfolioProgressCollection() {
