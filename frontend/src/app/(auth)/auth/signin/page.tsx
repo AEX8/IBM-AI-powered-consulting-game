@@ -116,7 +116,11 @@ export default function SignInPage() {
             </p>
           }
         >
-          <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4" noValidate>
+          <form
+            onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+            className="space-y-4"
+            noValidate
+          >
             <div>
               <label htmlFor="email" className="text-charcoal mb-1.5 block text-sm font-medium">
                 Email

@@ -11,7 +11,9 @@ export const metadata: Metadata = {
   title: 'Consulting Lobby',
 }
 
-export default async function DashboardPage({ searchParams }: {
+export default async function DashboardPage({
+  searchParams,
+}: {
   searchParams: Promise<{ arrival?: string }>
 }) {
   const { arrival } = await searchParams
