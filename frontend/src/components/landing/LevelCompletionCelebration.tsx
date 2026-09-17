@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 
 type LevelCompletionCelebrationProps = {
   show: boolean
-  completedLevel?: 1 | 2
+  completedLevel?: 1 | 2 | 3
 }
 
 const confetti = Array.from({ length: 42 }, (_, index) => ({
@@ -102,13 +102,13 @@ export default function LevelCompletionCelebration({
               </p>
 
               <h2 className="text-charcoal mt-2 text-4xl font-extrabold sm:text-5xl">
-                {completedLevel === 1 ? 'Outreach unlocked!' : 'Meeting preparation unlocked!'}
+                {completedLevel === 1 ? 'Outreach unlocked!' : completedLevel === 2 ? 'Meeting preparation unlocked!' : 'Client meeting unlocked!'}
               </h2>
 
               <p className="text-charcoal mt-4 text-lg font-semibold">
                 {completedLevel === 1
                   ? 'You found your first potential leads. Level 2 is now ready.'
-                  : 'Your outreach is complete. Level 3 is now ready.'}
+                  : completedLevel === 2 ? 'Your outreach is complete. Level 3 is now ready.' : 'Your preparation is saved. Level 4 is now ready.'}
               </p>
 
               <motion.div

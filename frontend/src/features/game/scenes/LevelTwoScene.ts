@@ -54,7 +54,7 @@ export class LevelTwoScene extends Phaser.Scene {
   private lastFootstepAt = 0
   private notes = ''
 
-  constructor() {
+  constructor(private readonly preparationMode = false) {
     super('LevelTwoScene')
   }
 
@@ -576,6 +576,14 @@ export class LevelTwoScene extends Phaser.Scene {
 
   private openLaptopOverlay(): void {
     if (this.laptopOverlay) return
+    // Level 3 reuses the room and complete sitting sequence. Only its workstation
+    // content changes; outreach submission and grading remain on the Level 2 path.
+    if (this.preparationMode) {
+      this.laptopOverlay = this.add.container(0, 0)
+      this.game.events.emit('preparation:open')
+      this.game.events.once('preparation:close', () => this.closeLaptopOverlay())
+      return
+    }
 
     // Only the room dimmer remains a Phaser canvas object. The complete laptop and
     // task panel are rendered once by OutreachLaptopFlow, avoiding the duplicated
@@ -595,7 +603,7 @@ export class LevelTwoScene extends Phaser.Scene {
 
     // The DOM layer recreates wireframe pages 2-10 while the Phaser objects above
     // retain the physical laptop frame and boot animation. It exposes one clean
-    // submission boundary for Ibrahim's later grading and lunch-break card.
+    // submission boundary for grading and the lunch-break screen.
     const outreachFlow = createOutreachLaptopFlow(this, {
       clients,
       onClose: () => this.closeLaptopOverlay(),
@@ -884,7 +892,7 @@ if (user && personaId) {
       })
       .setOrigin(0.5)
 
-    // Keep Ibrahim's scoring decision unchanged; this method only presents it.
+    // Display the grading result without changing the score.
     const passed = score !== null && score >= 5
     const statusText = this.add
       .text(
