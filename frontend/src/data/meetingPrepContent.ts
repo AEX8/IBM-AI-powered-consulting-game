@@ -833,6 +833,7 @@ export function getMeetingPrepClient(personaId: string) {
     (client) => client.personaId === personaId
   )
 }
+
 export type MeetingPrepScoreResult = {
   objectiveScore: number
   questionScore: number
@@ -883,7 +884,7 @@ export function scoreMeetingPrep(
   // Questions contribute a maximum of three points.
   const questionScore = Math.min(
     3,
-    questionPoints.reduce((total, score) => total + score, 0)
+    questionPoints.reduce<number>((total, score) => total + score, 0)
   )
 
   const totalScore = Math.min(6, objectiveScore + questionScore)

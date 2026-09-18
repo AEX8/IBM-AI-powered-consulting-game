@@ -200,6 +200,7 @@ export class LevelFourScene extends Phaser.Scene {
           return (
             knownClient ?? {
               name: selection.name,
+              personaId: '',
               company: 'Client organisation',
               texture: 'level-four-selected-client',
               portrait: selection.portrait,
