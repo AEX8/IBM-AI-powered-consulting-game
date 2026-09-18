@@ -79,6 +79,11 @@ feedback: scoring.feedback,
   id: prepRef.id,
   sessionId,
   personaId,
+  objectiveScore: scoring.objectiveScore,
+  questionScore: scoring.questionScore,
+  totalScore: scoring.totalScore,
+  resultLabel: scoring.resultLabel,
+  feedback: scoring.feedback,
 })
   } catch (error) {
     console.error('Failed to save meeting prep submission:', error)

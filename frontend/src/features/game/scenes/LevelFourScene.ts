@@ -105,6 +105,7 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   create(): void {
+    void this.loadMeetingPrep()
     this.physics.world.setBounds(0, WALKABLE_TOP, WORLD_WIDTH, WORLD_HEIGHT - WALKABLE_TOP)
     this.createTilemapRoom()
     this.createFurniture()
@@ -135,6 +136,54 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   /** Resolve the Level 2 selection, while retaining query-string previews for QA. */
+
+  private async loadMeetingPrep(): Promise<void> {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem('ibm-level-three-preparation') ?? 'null'
+    )
+
+    if (
+      !saved ||
+      typeof saved.personaId !== 'string' ||
+      typeof saved.submissionId !== 'string'
+    ) {
+      return
+    }
+
+    const response = await fetch(
+      `/api/meeting-prep/submissions?sessionId=${encodeURIComponent(
+        saved.submissionId
+      )}&personaId=${encodeURIComponent(saved.personaId)}`
+    )
+
+    if (!response.ok) {
+      return
+    }
+
+    const data = await response.json()
+
+    if (!data.prep) {
+      return
+    }
+
+    this.meetingPrep = {
+      sessionId: saved.submissionId,
+      personaId: data.prep.personaId,
+      selectedObjectives: data.prep.selectedObjectives ?? [],
+      selectedQuestions: data.prep.selectedQuestions ?? [],
+      totalScore: data.prep.totalScore ?? 0,
+      resultLabel: data.prep.resultLabel ?? '',
+    }
+  } catch (error) {
+    console.error('Failed to load meeting preparation for Level 4:', error)
+  }
+}
+
+
+
+
+
   private resolveClient(): MeetingClient {
     const requested = new URLSearchParams(window.location.search).get('client')?.toLowerCase()
     if (requested === 'sarah') return CLIENTS.sarah
@@ -558,14 +607,32 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   private choiceResponse(choice: number): string {
-    return (
+    const response = (
       [
         'The immediate priority is a reliable shared view that helps the team act without waiting on manual reconciliation.',
         'The inconsistency slows decisions and makes it harder to deliver a dependable experience for customers.',
         'Success means clearer decisions, measurable improvement and an approach the team can actually maintain.',
         'I need the operational owners involved early, with a focused next step that proves value before a larger commitment.',
       ][choice] ?? 'That is a useful place to start. Please tell me how you would move it forward.'
-    )
+      )
+      if (!this.meetingPrep) {
+  return response
+}
+
+const preparedObjective = this.meetingPrep.selectedObjectives[0]
+const preparedQuestion = this.meetingPrep.selectedQuestions[choice]
+  ?? this.meetingPrep.selectedQuestions[0]
+
+if (preparedQuestion) {
+  return `${response} Your preparation also highlighted "${preparedQuestion}", which is relevant to this discussion.`
+}
+
+if (preparedObjective) {
+  return `${response} That also connects with the meeting objective you prepared: "${preparedObjective}".`
+}
+
+return response
+    
   }
 
   private meetingStyles(): string {

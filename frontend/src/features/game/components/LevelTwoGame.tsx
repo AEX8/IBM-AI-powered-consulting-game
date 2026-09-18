@@ -8,11 +8,48 @@ import type { GradePreparation } from './preparationContent'
 const GAME_WIDTH = 1440
 const GAME_HEIGHT = 720
 
+const defaultGradePreparation: GradePreparation = async ({
+  personaId,
+  objectives,
+  questions,
+}) => {
+  const sessionId = crypto.randomUUID()
+
+  const response = await fetch('/api/meeting-prep/submissions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sessionId,
+      personaId,
+      selectedObjectives: objectives,
+      selectedQuestions: questions,
+    }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Failed to review meeting preparation')
+  }
+
+  return {
+    submissionId: sessionId,
+    feedback: Array.isArray(data.feedback)
+      ? data.feedback.join('\n')
+      : 'Your meeting preparation was saved successfully.',
+  }
+}
+
 /**
  * Level 2 owns a separate Phaser instance so its scene lifecycle cannot affect Level 1.
  * Keeping this wrapper small also lets the route remain a normal Next.js server component.
  */
-export function LevelTwoGame({ preparation = false, gradePreparation }: {
+export function LevelTwoGame({
+  preparation = false,
+  gradePreparation = defaultGradePreparation,
+}: {
   preparation?: boolean; gradePreparation?: GradePreparation
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
