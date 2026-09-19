@@ -116,7 +116,7 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 | `_schemaVersion` | `1` | Yes | Schema version for lazy migration |
 
 | `skillStats` | `map` | No | Points per skill: `clientDiscovery`, `businessAcumen`, `solutionDesign`, `clientManagement`, `dealSuccess` |
-| `stageResults` | `map` | No | Keyed `{stageId}_{clientKey}` (e.g. `5_sarah`) → `{ performance, xp, skillsAwarded }` |
+| `stageResults` | `map` | No | Keyed `{stageId}_{clientKey}` (e.g. `5_sarah`) → `{ performance, xp, skillsAwarded, completed, metrics }`. `metrics` holds the level's numeric scores. |
 | `badges` | `string[]` | No | One `stage-{n}` badge per stage first completed |
 
 **Document id** is the player's `uid`. The document is written only by the `recordStageCompletion` Server Action (Admin SDK), never directly from the browser.
