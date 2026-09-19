@@ -78,11 +78,25 @@ export interface ConsultingSession {
 }
 
 export interface PortfolioProgress {
-  id: string
+  id: string // equals the player's uid
   uid: string
   completedPersonaIds: string[]
-  completedLevels: number[]
+  completedLevels: number[] // stage ids (1-6) the player has completed
   totalXp: number
+  // Added with the home-page stats work. Optional so older documents stay valid.
+  skillStats?: {
+    clientDiscovery: number
+    businessAcumen: number
+    solutionDesign: number
+    clientManagement: number
+    dealSuccess: number
+  }
+  // Keyed `{stageId}_{clientKey}`, e.g. "5_sarah".
+  stageResults?: Record<
+    string,
+    { performance: 'strong' | 'developing'; xp: number; skillsAwarded: boolean }
+  >
+  badges?: string[] // one `stage-{n}` badge per stage first completed
   createdAt: Timestamp
   updatedAt: Timestamp
   _schemaVersion: 1

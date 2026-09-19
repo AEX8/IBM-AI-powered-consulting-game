@@ -115,5 +115,11 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 | `updatedAt` | `Timestamp` | Yes | When progress was last updated |
 | `_schemaVersion` | `1` | Yes | Schema version for lazy migration |
 
+| `skillStats` | `map` | No | Points per skill: `clientDiscovery`, `businessAcumen`, `solutionDesign`, `clientManagement`, `dealSuccess` |
+| `stageResults` | `map` | No | Keyed `{stageId}_{clientKey}` (e.g. `5_sarah`) → `{ performance, xp, skillsAwarded }` |
+| `badges` | `string[]` | No | One `stage-{n}` badge per stage first completed |
+
+**Document id** is the player's `uid`. The document is written only by the `recordStageCompletion` Server Action (Admin SDK), never directly from the browser.
+
 **Deletion:** Hard-delete is disabled.
 <!-- Add new collection schemas below using the /firebase-collection skill -->
