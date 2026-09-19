@@ -19,6 +19,21 @@ const LEVEL_ONE_COMPLETION_EVENT = 'ibm-level-one-completed'
 const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
 const LEVEL_TWO_COMPLETION_EVENT = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
+const LEVEL_THREE_COMPLETION_KEY = 'ibm-level-three-completed'
+const LEVEL_THREE_CELEBRATION_KEY = 'ibm-level-three-celebration-pending'
+
+const subscribeToLevelThreeCompletion = (changed: () => void) => {
+  window.addEventListener('storage', changed)
+  window.addEventListener(LEVEL_THREE_COMPLETION_KEY, changed)
+  return () => {
+    window.removeEventListener('storage', changed)
+    window.removeEventListener(LEVEL_THREE_COMPLETION_KEY, changed)
+  }
+}
+const readLevelThreeCompletion = () => localStorage.getItem(LEVEL_THREE_COMPLETION_KEY) === 'true'
+// A query string alone cannot award completion. The saved completion and pending
+// arrival flag must both exist before the one-time animation is displayed.
+const readLevelThreeArrival = () => readLevelThreeCompletion() && sessionStorage.getItem(LEVEL_THREE_CELEBRATION_KEY) === 'true'
 
 const subscribeToLevelOneCompletion = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -90,6 +105,22 @@ const roomImageDescriptionByType: Record<ConsultingStage['roomType'], string> = 
 
 export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
   const [isUnlocking, setIsUnlocking] = useState(false)
+  const levelThreeCompleted = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeCompletion, () => false)
+  const levelThreeArrival = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeArrival, () => false)
+
+  useEffect(() => {
+    if (stage.id !== 4 || !levelThreeArrival) return
+    const timer = window.setTimeout(() => {
+      sessionStorage.removeItem(LEVEL_THREE_CELEBRATION_KEY)
+      const url = new URL(window.location.href)
+      if (url.searchParams.get('completed') === 'level-3') {
+        url.searchParams.delete('completed')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+      }
+      window.dispatchEvent(new Event(LEVEL_THREE_COMPLETION_KEY))
+    }, 5400)
+    return () => window.clearTimeout(timer)
+  }, [stage.id, levelThreeArrival])
 
   const levelOneCompleted = useSyncExternalStore(
     subscribeToLevelOneCompletion,
@@ -121,17 +152,22 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
     () => false
   )
 
-  // The completion query parameter is a one-time arrival signal from Level 1.
-  // Consume it after opening the dashboard so returning from Level 2 or refreshing
-  // the lobby cannot replay the unlock celebration.
+  // Keep the arrival signal until the celebration finishes, including hydration.
   useEffect(() => {
     if (stage.id !== 2) return
 
     const currentUrl = new URL(window.location.href)
     if (currentUrl.searchParams.get('completed') !== 'level-1') return
 
-    currentUrl.searchParams.delete('completed')
-    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+    const timer = window.setTimeout(() => {
+      const url = new URL(window.location.href)
+      if (url.searchParams.get('completed') === 'level-1') {
+        url.searchParams.delete('completed')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+      }
+      window.dispatchEvent(new Event(LEVEL_ONE_COMPLETION_EVENT))
+    }, 5400)
+    return () => window.clearTimeout(timer)
   }, [levelOneCompletionArrival, stage.id])
 
   useEffect(() => {
@@ -168,7 +204,9 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
   const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneCompleted
 
   const effectiveStatus: ConsultingStage['status'] =
-    (levelOneCompleted || levelTwoCompleted) && stage.id === 1
+    levelThreeCompleted && stage.id <= 3 ? 'completed'
+      : levelThreeCompleted && stage.id === 4 ? 'active'
+      : (levelOneCompleted || levelTwoCompleted) && stage.id === 1
       ? 'completed'
       : levelTwoCompleted && stage.id === 2
         ? 'completed'
@@ -188,7 +226,7 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
   const isExpandedRoomImage = stage.id !== 1 && !isLocked
 
   const isNextLevelUnlocked =
-    (levelOneCompleted && stage.id === 2) || (levelTwoCompleted && stage.id === 3)
+    (levelOneCompleted && stage.id === 2) || (levelTwoCompleted && stage.id === 3) || (levelThreeCompleted && stage.id === 4)
 
   const isShowingUnlockAnimation = isUnlocking && stage.id === 1
 
@@ -212,6 +250,7 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
 
   return (
     <>
+      {stage.id === 4 && <LevelCompletionCelebration show={levelThreeArrival} completedLevel={3} />}
       {stage.id === 2 && <LevelCompletionCelebration show={levelOneCompletionArrival} />}
       {stage.id === 3 && (
         <LevelCompletionCelebration show={levelTwoCompletionArrival} completedLevel={2} />

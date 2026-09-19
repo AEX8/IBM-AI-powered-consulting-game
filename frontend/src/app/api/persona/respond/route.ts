@@ -170,13 +170,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    const {
-      message,
-      persona_id,
-      history: rawHistory = [],
-      covered_info_points: rawCoveredInfoPoints = [],
-    } = body
-
+   const {
+  message,
+  persona_id,
+  history: rawHistory = [],
+  covered_info_points: rawCoveredInfoPoints = [],
+  meeting_prep: rawMeetingPrep,
+} = body
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
@@ -186,6 +186,21 @@ export async function POST(request: Request) {
     }
 
     const history = normaliseHistory(rawHistory)
+
+    const meetingPrep =
+  rawMeetingPrep &&
+  typeof rawMeetingPrep === 'object' &&
+  Array.isArray((rawMeetingPrep as { selectedObjectives?: unknown }).selectedObjectives) &&
+  Array.isArray((rawMeetingPrep as { selectedQuestions?: unknown }).selectedQuestions)
+    ? {
+        selectedObjectives: (rawMeetingPrep as { selectedObjectives: unknown[] }).selectedObjectives.filter(
+          (item): item is string => typeof item === 'string'
+        ),
+        selectedQuestions: (rawMeetingPrep as { selectedQuestions: unknown[] }).selectedQuestions.filter(
+          (item): item is string => typeof item === 'string'
+        ),
+      }
+    : undefined
 
     if (process.env.NODE_ENV === 'development' && process.env.PERSONA_API_MOCK === 'true') {
       return NextResponse.json({
@@ -228,6 +243,29 @@ export async function POST(request: Request) {
       : []
     const completionConfig = getPersonaCompletionConfig(persona_id, firestoreInfoPoints)
     const { systemPrompt, requiredInfoPoints } = buildPersonaContext(persona, completionConfig)
+    const meetingPrepContext = meetingPrep
+  ? `
+The player prepared for this meeting with the following information.
+
+Selected meeting objectives:
+${
+  meetingPrep.selectedObjectives.length > 0
+    ? meetingPrep.selectedObjectives.map((objective) => `- ${objective}`).join('\n')
+    : '- No objectives were selected.'
+}
+
+Prepared questions:
+${
+  meetingPrep.selectedQuestions.length > 0
+    ? meetingPrep.selectedQuestions.map((question) => `- ${question}`).join('\n')
+    : '- No questions were selected.'
+}
+
+Use this preparation naturally during the conversation. You may acknowledge or react to what the player prepared, but do not invent preparation details that are not listed above.
+`
+  : ''
+
+const systemPromptWithPrep = `${systemPrompt}${meetingPrepContext}`
 
     const groqHistory = history.map((item) => ({
       role: item.role === 'player' ? ('user' as const) : ('assistant' as const),
@@ -240,7 +278,7 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'system',
-          content: systemPrompt,
+          content: systemPromptWithPrep,
         },
         ...groqHistory,
         {

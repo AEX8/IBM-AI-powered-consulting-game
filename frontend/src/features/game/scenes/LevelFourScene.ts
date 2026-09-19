@@ -8,6 +8,7 @@ const PLAYER_SPEED = 220
 
 type MeetingClient = {
   name: string
+  personaId: string
   company: string
   texture: string
   portrait: string
@@ -22,6 +23,7 @@ type MeetingMessage = {
 const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   david: {
     name: 'David Palte',
+    personaId: 'test-level1-2',
     company: 'Meridian Retail Group',
     texture: 'level-four-david',
     portrait: 'character-02.png',
@@ -30,6 +32,7 @@ const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   },
   sarah: {
     name: 'Sarah Chen',
+    personaId: 'test-level1-1',
     company: 'ACMD Manufacturing',
     texture: 'level-four-sarah',
     portrait: 'character-01.png',
@@ -67,7 +70,14 @@ export class LevelFourScene extends Phaser.Scene {
   private playerShadow!: Phaser.GameObjects.Ellipse
   private lastFootstepAt = 0
   private meetingSequenceActive = false
-
+  private meetingPrep?: {
+  sessionId: string
+  personaId: string
+  selectedObjectives: string[]
+  selectedQuestions: string[]
+  totalScore: number
+  resultLabel: string
+}
   constructor() {
     super('LevelFourScene')
   }
@@ -77,15 +87,25 @@ export class LevelFourScene extends Phaser.Scene {
     this.load.image('level-four-player', '/assets/characters/npcs/character-03.png')
     this.load.image('level-four-player-back', '/assets/game/level-2/player-facing-desk.png')
     this.load.image('level-four-selected-client', `/assets/characters/npcs/${this.client.portrait}`)
-    this.load.image('level-four-painting', '/assets/game/level-4/furniture/level-four-garden-painting.png')
-    this.load.image('level-four-bookshelf', '/assets/game/level-4/furniture/level-four-bookshelf.png')
+    this.load.image(
+      'level-four-painting',
+      '/assets/game/level-4/furniture/level-four-garden-painting.png'
+    )
+    this.load.image(
+      'level-four-bookshelf',
+      '/assets/game/level-4/furniture/level-four-bookshelf.png'
+    )
     this.load.image('level-four-window', '/assets/game/level-4/furniture/level-four-window.png')
     this.load.image('level-four-desk', '/assets/game/level-4/furniture/level-four-meeting-desk.png')
-    this.load.image('level-four-chair', '/assets/game/level-4/furniture/level-four-meeting-chair.png')
+    this.load.image(
+      'level-four-chair',
+      '/assets/game/level-4/furniture/level-four-meeting-chair.png'
+    )
     this.load.image('level-four-plant', '/assets/game/level-4/furniture/level-four-floor-plant.png')
   }
 
   create(): void {
+    void this.loadMeetingPrep()
     this.physics.world.setBounds(0, WALKABLE_TOP, WORLD_WIDTH, WORLD_HEIGHT - WALKABLE_TOP)
     this.createTilemapRoom()
     this.createFurniture()
@@ -116,6 +136,54 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   /** Resolve the Level 2 selection, while retaining query-string previews for QA. */
+
+  private async loadMeetingPrep(): Promise<void> {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem('ibm-level-three-preparation') ?? 'null'
+    )
+
+    if (
+      !saved ||
+      typeof saved.personaId !== 'string' ||
+      typeof saved.submissionId !== 'string'
+    ) {
+      return
+    }
+
+    const response = await fetch(
+      `/api/meeting-prep/submissions?sessionId=${encodeURIComponent(
+        saved.submissionId
+      )}&personaId=${encodeURIComponent(saved.personaId)}`
+    )
+
+    if (!response.ok) {
+      return
+    }
+
+    const data = await response.json()
+
+    if (!data.prep) {
+      return
+    }
+
+    this.meetingPrep = {
+      sessionId: saved.submissionId,
+      personaId: data.prep.personaId,
+      selectedObjectives: data.prep.selectedObjectives ?? [],
+      selectedQuestions: data.prep.selectedQuestions ?? [],
+      totalScore: data.prep.totalScore ?? 0,
+      resultLabel: data.prep.resultLabel ?? '',
+    }
+  } catch (error) {
+    console.error('Failed to load meeting preparation for Level 4:', error)
+  }
+}
+
+
+
+
+
   private resolveClient(): MeetingClient {
     const requested = new URLSearchParams(window.location.search).get('client')?.toLowerCase()
     if (requested === 'sarah') return CLIENTS.sarah
@@ -126,10 +194,13 @@ export class LevelFourScene extends Phaser.Scene {
       if (stored) {
         const selection = JSON.parse(stored) as Partial<{ name: string; portrait: string }>
         if (selection.name && selection.portrait) {
-          const knownClient = Object.values(CLIENTS).find((client) => client.name === selection.name)
+          const knownClient = Object.values(CLIENTS).find(
+            (client) => client.name === selection.name
+          )
           return (
             knownClient ?? {
               name: selection.name,
+              personaId: '',
               company: 'Client organisation',
               texture: 'level-four-selected-client',
               portrait: selection.portrait,
@@ -183,10 +254,7 @@ export class LevelFourScene extends Phaser.Scene {
     this.add.image(720, 350, 'level-four-selected-client').setDisplaySize(175, 275).setDepth(7)
     this.add.ellipse(720, 560, 515, 42, 0x2c2c2a, 0.18).setDepth(8)
     this.add.image(720, 465, 'level-four-desk').setDisplaySize(480, 240).setDepth(10)
-    this.chair = this.add
-      .image(720, 550, 'level-four-chair')
-      .setDisplaySize(145, 180)
-      .setDepth(12)
+    this.chair = this.add.image(720, 550, 'level-four-chair').setDisplaySize(145, 180).setDepth(12)
 
     const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xffdda3, 0.05).setDepth(3)
     this.tweens.add({
@@ -277,7 +345,9 @@ export class LevelFourScene extends Phaser.Scene {
 
     if (this.time.now - this.lastFootstepAt > 240) {
       this.lastFootstepAt = this.time.now
-      const step = this.add.circle(this.player.x, this.player.y + 134, 6, 0x2c2c2a, 0.2).setDepth(17)
+      const step = this.add
+        .circle(this.player.x, this.player.y + 134, 6, 0x2c2c2a, 0.2)
+        .setDepth(17)
       this.tweens.add({
         targets: step,
         alpha: 0,
@@ -381,20 +451,26 @@ export class LevelFourScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(121)
     circle.on('pointerdown', action)
-    circle.on('pointerover', () => this.tweens.add({ targets: [circle, icon], scale: 1.1, duration: 120 }))
-    circle.on('pointerout', () => this.tweens.add({ targets: [circle, icon], scale: 1, duration: 120 }))
+    circle.on('pointerover', () =>
+      this.tweens.add({ targets: [circle, icon], scale: 1.1, duration: 120 })
+    )
+    circle.on('pointerout', () =>
+      this.tweens.add({ targets: [circle, icon], scale: 1, duration: 120 })
+    )
   }
 
   private openNotebook(): void {
     if (this.notebookOverlay || this.meetingOverlay) return
     this.notebookOverlay = this.add
       .dom(720, 360)
-      .createFromHTML(`
+      .createFromHTML(
+        `
         <div style="width:560px;border:6px solid #2c2c2a;border-radius:18px;background:#f7f1e7;padding:24px;font:18px Arial;box-shadow:10px 10px 0 #2c2c2a88">
           <button data-close style="float:right;border:3px solid #2c2c2a;border-radius:50%;background:white;width:42px;height:42px;font-size:25px;cursor:pointer">×</button>
           <h2 style="color:#1f4f78;margin:0 0 16px">Meeting notebook</h2>
           <textarea aria-label="Meeting notes" placeholder="Record useful meeting notes…" style="width:100%;height:260px;box-sizing:border-box;border:3px solid #2c2c2a;border-radius:12px;padding:16px;font:17px/1.45 Arial;resize:none"></textarea>
-        </div>`)
+        </div>`
+      )
       .setDepth(5000)
     this.cameras.main.ignore(this.notebookOverlay)
 
@@ -532,14 +608,32 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   private choiceResponse(choice: number): string {
-    return (
+    const response = (
       [
-      'The immediate priority is a reliable shared view that helps the team act without waiting on manual reconciliation.',
-      'The inconsistency slows decisions and makes it harder to deliver a dependable experience for customers.',
-      'Success means clearer decisions, measurable improvement and an approach the team can actually maintain.',
-      'I need the operational owners involved early, with a focused next step that proves value before a larger commitment.',
+        'The immediate priority is a reliable shared view that helps the team act without waiting on manual reconciliation.',
+        'The inconsistency slows decisions and makes it harder to deliver a dependable experience for customers.',
+        'Success means clearer decisions, measurable improvement and an approach the team can actually maintain.',
+        'I need the operational owners involved early, with a focused next step that proves value before a larger commitment.',
       ][choice] ?? 'That is a useful place to start. Please tell me how you would move it forward.'
-    )
+      )
+      if (!this.meetingPrep) {
+  return response
+}
+
+const preparedObjective = this.meetingPrep.selectedObjectives[0]
+const preparedQuestion = this.meetingPrep.selectedQuestions[choice]
+  ?? this.meetingPrep.selectedQuestions[0]
+
+if (preparedQuestion) {
+  return `${response} Your preparation also highlighted "${preparedQuestion}", which is relevant to this discussion.`
+}
+
+if (preparedObjective) {
+  return `${response} That also connects with the meeting objective you prepared: "${preparedObjective}".`
+}
+
+return response
+    
   }
 
   private meetingStyles(): string {

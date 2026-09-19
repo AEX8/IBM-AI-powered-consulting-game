@@ -91,14 +91,20 @@ const CLIENT_BRIEFS: Record<
   { businessNeed: string; impact: string; desiredOutcome: string }
 > = {
   'test-level-1': {
-    businessNeed: 'ACMD Manufacturing is experiencing supply-chain delays caused by disconnected systems and limited operational visibility.',
-    impact: 'The delays are causing missed delivery targets and customer compensation while the business continues to grow.',
-    desiredOutcome: 'Sarah wants better operational visibility without a disruptive, long-term replacement of every existing system.',
+    businessNeed:
+      'ACMD Manufacturing is experiencing supply-chain delays caused by disconnected systems and limited operational visibility.',
+    impact:
+      'The delays are causing missed delivery targets and customer compensation while the business continues to grow.',
+    desiredOutcome:
+      'Sarah wants better operational visibility without a disruptive, long-term replacement of every existing system.',
   },
   'test-level-2': {
-    businessNeed: 'Customer information is split across store, online, mobile and loyalty systems, so teams do not share one reliable customer view.',
-    impact: 'The fragmented data prevents dependable churn, customer and promotion analysis as the company prepares to expand.',
-    desiredOutcome: 'David wants a practical solution that unifies the customer view and demonstrates value quickly.',
+    businessNeed:
+      'Customer information is split across store, online, mobile and loyalty systems, so teams do not share one reliable customer view.',
+    impact:
+      'The fragmented data prevents dependable churn, customer and promotion analysis as the company prepares to expand.',
+    desiredOutcome:
+      'David wants a practical solution that unifies the customer view and demonstrates value quickly.',
   },
 }
 
@@ -113,7 +119,10 @@ function emailChecklist(body: string, subject: string, client: OutreachClient) {
   const firstName = client.name.split(' ')[0]?.toLowerCase() ?? ''
 
   return [
-    { label: 'Add a greeting', complete: /\b(hi|hello|dear|good morning|good afternoon)\b/i.test(body) },
+    {
+      label: 'Add a greeting',
+      complete: /\b(hi|hello|dear|good morning|good afternoon)\b/i.test(body),
+    },
     {
       label: 'Mention the client or company',
       complete:
@@ -136,7 +145,9 @@ function emailChecklist(body: string, subject: string, client: OutreachClient) {
     },
     {
       label: 'Include a clear next step',
-      complete: /\b(meeting|call|discuss|available|availability|next week|follow up)\b/i.test(content),
+      complete: /\b(meeting|call|discuss|available|availability|next week|follow up)\b/i.test(
+        content
+      ),
     },
     {
       label: 'Add a professional sign-off',
@@ -355,7 +366,8 @@ export function createOutreachLaptopFlow(
       })
     } else if (step === 'composer' && client && details) {
       const clientBrief = CLIENT_BRIEFS[client.personaId ?? ''] ?? {
-        businessNeed: 'Review what this client told you about their most important business challenge.',
+        businessNeed:
+          'Review what this client told you about their most important business challenge.',
         impact: 'Consider how the challenge affects their organisation, customers or growth.',
         desiredOutcome: 'Explain how your proposed next step connects to the outcome they want.',
       }
@@ -425,8 +437,8 @@ export function createOutreachLaptopFlow(
     // state render so Phaser centres the complete interface instead of treating its
     // top-left corner as the origin and pushing the laptop off-screen.
     if (gameObject.node) {
-  gameObject.updateSize()
-}
+      gameObject.updateSize()
+    }
     // The sent screen contains both the persistent × and a Return to office
     // button. Bind every close control rather than only the first match so either
     // exit returns the player to the office and restores normal room controls.
@@ -448,10 +460,12 @@ export function createOutreachLaptopFlow(
     // Phaser listens for movement and interaction keys at the window level. Stop
     // events from editable laptop controls before they reach Phaser so ordinary
     // text—especially spaces and the interaction key "E"—is never swallowed.
-    root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((field) => {
-      field.addEventListener('keydown', (event) => event.stopPropagation())
-      field.addEventListener('keyup', (event) => event.stopPropagation())
-    })
+    root
+      .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')
+      .forEach((field) => {
+        field.addEventListener('keydown', (event) => event.stopPropagation())
+        field.addEventListener('keyup', (event) => event.stopPropagation())
+      })
   }
 
   render()

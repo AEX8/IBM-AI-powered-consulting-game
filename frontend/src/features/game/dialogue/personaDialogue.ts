@@ -23,6 +23,10 @@ export type PersonaReplyResult = {
   usedFallback: boolean
   reason: 'success' | 'timeout' | 'network' | 'server' | 'invalid-response'
 }
+export type PersonaMeetingPrepContext = {
+  selectedObjectives: string[]
+  selectedQuestions: string[]
+}
 
 type RequestPersonaReplyOptions = {
   message: string
@@ -30,6 +34,7 @@ type RequestPersonaReplyOptions = {
   history?: PersonaConversationMessage[]
   coveredInfoPoints?: string[]
   timeoutMs?: number
+  meetingPrep?: PersonaMeetingPrepContext
 }
 
 type PersonaApiBody = {
@@ -49,6 +54,7 @@ export async function requestPersonaReply({
   personaId,
   history = [],
   coveredInfoPoints: priorCoveredInfoPoints = [],
+  meetingPrep,
   timeoutMs = DEFAULT_PERSONA_TIMEOUT_MS,
 }: RequestPersonaReplyOptions): Promise<PersonaReplyResult> {
   // Abort stalled providers so the game cannot leave its reply field disabled
@@ -70,6 +76,7 @@ export async function requestPersonaReply({
         persona_id: personaId,
         history,
         covered_info_points: priorCoveredInfoPoints,
+        meeting_prep: meetingPrep,
       }),
       signal: controller.signal,
     })
