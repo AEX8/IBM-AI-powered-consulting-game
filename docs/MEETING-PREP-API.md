@@ -34,7 +34,7 @@ No request body is required.
 {
   "clients": [
     {
-      "id": "test-level1-1",
+      "id": "test-level-1",
       "name": "Sarah Chen",
       "jobTitle": "Chief Operating Officer",
       "company": "ACMD Manufacturing",
@@ -65,7 +65,7 @@ Returns the full Client File and Meeting Prep content for a specific persona.
 ### Request example
 
 ```http
-GET /api/meeting-prep/clients/test-level1-1
+GET /api/meeting-prep/clients/test-level-1
 ```
 
 ### Success response
@@ -73,7 +73,7 @@ GET /api/meeting-prep/clients/test-level1-1
 ```json
 {
   "client": {
-    "personaId": "test-level1-1",
+    "personaId": "test-level-1",
     "name": "Sarah Chen",
     "role": "Chief Operating Officer",
     "company": "ACMD Manufacturing",
@@ -154,7 +154,7 @@ Content-Type: application/json
 ```json
 {
   "sessionId": "test-session-1",
-  "personaId": "test-level1-1",
+  "personaId": "test-level-1",
   "selectedObjectives": [
     "Improve supply chain visibility and reduce delivery delays without significantly disrupting existing systems."
   ],
@@ -167,7 +167,7 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "id": "USER_ID_test-session-1_test-level1-1"
+  "id": "USER_ID_test-session-1_test-level-1"
 }
 ```
 
