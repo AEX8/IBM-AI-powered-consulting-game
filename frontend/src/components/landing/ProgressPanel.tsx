@@ -1,6 +1,4 @@
-import type { initialConsultantProgress } from './landingData'
-
-type ConsultantProgress = typeof initialConsultantProgress
+import { SKILL_KEYS, SKILL_LABELS, type ConsultantProgress } from '@/features/progress/progress'
 
 type ProgressPanelProps = {
   progress: ConsultantProgress
@@ -81,7 +79,7 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
               XP earned
             </dt>
 
-            <dd className="text-dark-blue font-extrabold">{progress.currentXp}</dd>
+            <dd className="text-dark-blue font-extrabold">{progress.totalXp}</dd>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -108,6 +106,19 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
             <dd className="text-dark-blue font-extrabold">{progress.durationHours} Hrs</dd>
           </div>
         </dl>
+
+        <div className="border-charcoal/20 mt-4 border-t-2 pt-3">
+          <h3 className="text-dark-blue text-sm font-extrabold">Consulting skills</h3>
+
+          <dl className="mt-2 space-y-2 text-xs">
+            {SKILL_KEYS.map((skill) => (
+              <div key={skill} className="flex items-center justify-between gap-2">
+                <dt className="text-charcoal">{SKILL_LABELS[skill]}</dt>
+                <dd className="text-dark-blue font-extrabold">{progress.skillStats[skill]}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
     </aside>
   )

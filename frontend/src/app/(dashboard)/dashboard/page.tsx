@@ -5,15 +5,15 @@ import { adminDb } from '@/lib/firebase/admin'
 import ConsultingRoom from '@/components/landing/ConsultingRoom'
 import ProgressPanel from '@/components/landing/ProgressPanel'
 import ElevatorIntro from '@/components/auth/ElevatorIntro'
-import { consultingStages, initialConsultantProgress } from '@/components/landing/landingData'
+import { consultingStages } from '@/components/landing/landingData'
+import { getConsultantProgress } from '@/features/progress/queries'
+import { emptyProgressData, toConsultantProgress } from '@/features/progress/progress'
 
 export const metadata: Metadata = {
   title: 'Consulting Lobby',
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
+export default async function DashboardPage({ searchParams }: {
   searchParams: Promise<{ arrival?: string }>
 }) {
   const { arrival } = await searchParams
@@ -26,6 +26,10 @@ export default async function DashboardPage({
     : null
 
   const consultantName = displayName ?? session?.email ?? 'Consultant'
+
+  const progress = session
+    ? await getConsultantProgress(session.uid)
+    : toConsultantProgress(emptyProgressData())
 
   const findLeadStage = consultingStages.find((stage) => stage.id === 1)
   const outreachStage = consultingStages.find((stage) => stage.id === 2)
@@ -116,7 +120,7 @@ export default async function DashboardPage({
             </div>
           </section>
 
-          <ProgressPanel progress={initialConsultantProgress} />
+          <ProgressPanel progress={progress} />
         </div>
       </div>
     </div>
