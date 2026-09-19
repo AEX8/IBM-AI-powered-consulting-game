@@ -23,7 +23,7 @@ type MeetingMessage = {
 const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   david: {
     name: 'David Palte',
-    personaId: 'test-level1-2',
+    personaId: 'test-level-2',
     company: 'Meridian Retail Group',
     texture: 'level-four-david',
     portrait: 'character-02.png',
@@ -32,7 +32,7 @@ const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   },
   sarah: {
     name: 'Sarah Chen',
-    personaId: 'test-level1-1',
+    personaId: 'test-level-1',
     company: 'ACMD Manufacturing',
     texture: 'level-four-sarah',
     portrait: 'character-01.png',
