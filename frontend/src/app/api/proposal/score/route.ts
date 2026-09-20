@@ -1,22 +1,10 @@
 import { NextResponse } from 'next/server'
+import { getPersonaPrompts } from '@/features/proposal/personaPrompts'
 
 const MODEL = 'openai/gpt-oss-20b'
 
-// Temporary hardcoded persona context (Sarah Chen— ACMD Manufacturing), matching
-// Client File.docx. Replace with a Firestore `personas` lookup once Level 5 reads
-// real engagement data instead of frontend/src/features/proposal/mockData.ts.
-const CLIENT_CONTEXT = `
-Client: Sarah Chen, Chief Operating Officer, ACMD Manufacturing (manufacturing, high-growth).
-Business problem: Supply chain delays and poor operational visibility — inventory, orders and
-logistics are managed in separate systems and spreadsheets, so problems are found reactively.
-Priorities: improve visibility, catch problems earlier, reduce delivery delays, support growth,
-avoid disrupting existing systems.
-Concerns: does not want a long, disruptive system replacement; cares about cost, time to value,
-and integration with current processes.
-Desired outcome: better operational visibility without replacing everything.
-`
-
 type ProposalScoreRequestBody = {
+  personaKey?: unknown
   solutionScope?: unknown
   investment?: unknown
   nextSteps?: unknown
@@ -37,7 +25,7 @@ function timelineLabels(value: unknown): string[] {
     .filter(Boolean)
 }
 
-// Some models (especially reasoning models like gpt oss) prepend explanatory text
+// Some models (especially reasoning models like gpt-oss) prepend explanatory text
 // or a code fence before the JSON object. Extract the {...} slice directly instead
 // of assuming the whole trimmed string is valid JSON.
 function extractJsonObject(rawContent: string): string | null {
@@ -55,6 +43,12 @@ function extractJsonObject(rawContent: string): string | null {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ProposalScoreRequestBody
+
+    const prompts = getPersonaPrompts(body.personaKey)
+
+    if (!prompts) {
+      return NextResponse.json({ error: 'Unknown client' }, { status: 400 })
+    }
 
     const solutionScope = typeof body.solutionScope === 'string' ? body.solutionScope : ''
     const investment = typeof body.investment === 'string' ? body.investment : ''
@@ -74,7 +68,7 @@ export async function POST(request: Request) {
     const gradingPrompt = `
 You are evaluating a consulting engagement proposal against a specific client's situation.
 
-${CLIENT_CONTEXT}
+${prompts.scoringContext}
 
 Proposal to evaluate:
 - Solution / scope: ${solutionScope}

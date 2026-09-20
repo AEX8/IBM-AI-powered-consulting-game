@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
+import { getPersonaPrompts } from '@/features/proposal/personaPrompts'
 
 const MODEL = 'openai/gpt-oss-20b'
 
-const CLIENT_PERSONA_VOICE = `
-You are Sarah Chen, Chief Operating Officer at ACMD Manufacturing. Your main concern is
-disruption and implementation risk — you don't want an eighteen-month project before seeing
-value, and you want reassurance the proposal will actually reduce delivery problems.
-`
-
 type ObjectionRequestBody = {
+  personaKey?: unknown
   solutionScope?: unknown
   investment?: unknown
   nextSteps?: unknown
@@ -42,6 +38,12 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ObjectionRequestBody
 
+    const prompts = getPersonaPrompts(body.personaKey)
+
+    if (!prompts) {
+      return NextResponse.json({ error: 'Unknown client' }, { status: 400 })
+    }
+
     const solutionScope = typeof body.solutionScope === 'string' ? body.solutionScope : ''
     const investment = typeof body.investment === 'string' ? body.investment : ''
     const nextSteps = typeof body.nextSteps === 'string' ? body.nextSteps : ''
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
     }
 
     const prompt = `
-${CLIENT_PERSONA_VOICE}
+${prompts.objectionVoice}
 
 This is round ${roundNumber} of 3 in reviewing a consultant's proposal.
 
