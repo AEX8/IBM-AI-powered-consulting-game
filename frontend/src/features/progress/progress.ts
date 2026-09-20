@@ -65,6 +65,7 @@ export type ConsultantProgress = {
   requiredXp: number
   totalXp: number
   completedStages: number
+  completedStageIds: number[]
   totalStages: number
   badgesCollected: number
   durationHours: number
@@ -261,6 +262,7 @@ export function toConsultantProgress(data: ProgressData): ConsultantProgress {
     requiredXp: XP_PER_LEVEL,
     totalXp: data.totalXp,
     completedStages: Math.min(TOTAL_STAGES, new Set(data.completedLevels).size),
+    completedStageIds: [...new Set(data.completedLevels)].sort((a, b) => a - b),
     totalStages: TOTAL_STAGES,
     badgesCollected: data.badges.length,
     durationHours: 0,

@@ -169,4 +169,10 @@ describe('toConsultantProgress', () => {
     expect(progress.currentXp).toBe(200)
     expect(progress.requiredXp).toBe(5000)
   })
+  it('lists completed stage ids in order without duplicates', () => {
+    const progress = toConsultantProgress({ ...emptyProgressData(), completedLevels: [3, 1, 3] })
+
+    expect(progress.completedStageIds).toEqual([1, 3])
+    expect(progress.completedStages).toBe(2)
+  })
 })
