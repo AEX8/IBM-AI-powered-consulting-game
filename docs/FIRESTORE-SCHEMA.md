@@ -115,5 +115,39 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 | `updatedAt` | `Timestamp` | Yes | When progress was last updated |
 | `_schemaVersion` | `1` | Yes | Schema version for lazy migration |
 
+| `skillStats` | `map` | No | Points per skill: `clientDiscovery`, `businessAcumen`, `solutionDesign`, `clientManagement`, `dealSuccess` |
+| `stageResults` | `map` | No | Keyed `{stageId}_{clientKey}` (e.g. `5_sarah`) → `{ performance, xp, skillsAwarded, completed, metrics }`. `metrics` holds the level's numeric scores. |
+| `badges` | `string[]` | No | One `stage-{n}` badge per stage first completed |
+
+**Document id** is the player's `uid`. The document is written only by the `recordStageCompletion` Server Action (Admin SDK), never directly from the browser.
+
+
+---
+
+## `meetings` collection
+
+**Path:** `/meetings/{meetingId}` (auto-generated id)
+
+**Access:** Server only (Admin SDK). No client rules, so browsers cannot read or write it.
+
+One document per Level 4 client meeting attempt, written by `POST /api/meeting/score`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Matches the document ID |
+| `uid` | `string` | Yes | Firebase UID of the player |
+| `personaId` | `string` | Yes | Client persona document id, e.g. `test-level-1` |
+| `personaKey` | `string \| null` | Yes | Short client key, e.g. `sarah` |
+| `transcript` | `Array<{ role, content }>` | Yes | The full conversation (`role` is `player` or `client`) |
+| `prep` | `map \| null` | Yes | The objectives and questions the player prepared in Level 3 |
+| `scores` | `map` | Yes | `relationship`, `trust`, `understanding`, `dealPotential`, `patience` (0-100 each) |
+| `overall` | `number` | Yes | Average of the five scores |
+| `passed` | `boolean` | Yes | `overall` of 50 or more |
+| `feedback` | `string` | Yes | Written summary shown to the player |
+| `improvements` | `string[]` | Yes | Two improvement tips |
+| `createdAt` | `Timestamp` | Yes | When the meeting was assessed |
+| `_schemaVersion` | `1` | Yes | Schema version for lazy migration |
+
+
 **Deletion:** Hard-delete is disabled.
 <!-- Add new collection schemas below using the /firebase-collection skill -->

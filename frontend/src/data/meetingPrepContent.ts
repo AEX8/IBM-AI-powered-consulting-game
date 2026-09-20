@@ -111,7 +111,7 @@ export const SCORE_RESULTS = {
 
 export const MEETING_PREP_CLIENTS: MeetingPrepClientContent[] = [
   {
-    personaId: 'test-level1-1',
+    personaId: 'test-level-1',
     name: 'Sarah Chen',
     role: 'Chief Operating Officer',
     company: 'ACMD Manufacturing',
@@ -235,12 +235,53 @@ export const MEETING_PREP_CLIENTS: MeetingPrepClientContent[] = [
     bestObjective:
       'Improve supply chain visibility and reduce delivery delays without significantly disrupting existing systems.',
 
-    // Fatima's supplied file does not include Sarah question options.
-    questions: [],
+    // Sarah's supplied file has no question options. These follow the same pattern
+    // as David's (four strong, two poor) and use the wording the Level 3 screen shows.
+    questions: [
+      {
+        id: 'A',
+        text: 'Which parts of the supply chain currently have the least reliable or timely information?',
+        strength: 'strong',
+        reason: 'Investigates where the underlying visibility problem sits.',
+      },
+      {
+        id: 'B',
+        text: "Why haven't your teams fixed these delivery delays already?",
+        strength: 'poor',
+        reason: 'Challenges the client instead of exploring the problem.',
+      },
+      {
+        id: 'C',
+        text: 'How are delivery delays and manual reporting affecting customers and employees?',
+        strength: 'strong',
+        reason: 'Establishes business impact.',
+      },
+      {
+        id: 'D',
+        text: 'What would better operational visibility allow your teams to identify or decide earlier?',
+        strength: 'strong',
+        reason: 'Identifies the desired outcome.',
+      },
+      {
+        id: 'E',
+        text: 'Would you like us to replace all your existing operational systems?',
+        strength: 'poor',
+        reason: "Jumps to an oversized solution and ignores Sarah's concern about disruption.",
+      },
+      {
+        id: 'F',
+        text: 'What constraints should we consider to improve visibility without disrupting current operations?',
+        strength: 'strong',
+        reason: "Addresses Sarah's concern about disrupting existing systems.",
+      },
+    ],
+
+    bestQuestion:
+      'What constraints should we consider to improve visibility without disrupting current operations?',
   },
 
   {
-    personaId: 'test-level1-2',
+    personaId: 'test-level-2',
     name: 'David Palte',
     role: 'Chief Technology Officer',
     company: 'Meridian Retail Group',
@@ -867,9 +908,13 @@ export function scoreMeetingPrep(
     (objective) => objective.isCorrect
   )
 
-  // The objective represents the overall meeting direction.
-  // A correct objective earns the full objective portion of the six-point score.
-  const objectiveScore = hasCorrectObjective ? 3 : 0
+  // The objective represents the overall meeting direction. The correct objective
+  // earns the full three points, but every incorrect objective chosen alongside it
+  // costs one point, so selecting several options is not rewarded.
+  const wrongObjectiveCount = selectedObjectiveResults.filter(
+    (objective) => !objective.isCorrect
+  ).length
+  const objectiveScore = hasCorrectObjective ? Math.max(0, 3 - wrongObjectiveCount) : 0
 
   const selectedQuestionResults = client.questions.filter((question) =>
     selectedQuestions.includes(question.text)
@@ -903,6 +948,12 @@ export function scoreMeetingPrep(
   } else {
     feedback.push(
       `Consider focusing the meeting objective on: ${client.bestObjective}`
+    )
+  }
+
+  if (hasCorrectObjective && wrongObjectiveCount > 0) {
+    feedback.push(
+      'You also selected objectives that do not fit the client need. A focused meeting objective works better than several competing ones.'
     )
   }
 
