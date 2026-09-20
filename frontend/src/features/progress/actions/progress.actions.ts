@@ -1,15 +1,10 @@
 'use server'
 
 import { z } from 'zod'
-import { Timestamp } from 'firebase-admin/firestore'
-import { adminDb } from '@/lib/firebase/admin'
 import { requireAuth } from '@/actions/auth.actions'
 import type { ActionResult } from '@/types'
-import {
-  applyStageCompletion,
-  normalizeProgressData,
-  type StageCompletionReward,
-} from '../progress'
+import type { StageCompletionReward } from '../progress'
+import { saveStageCompletion } from '../server'
 
 const skillDelta = z.number().int().min(0).max(3).optional()
 
@@ -27,6 +22,10 @@ const recordStageCompletionSchema = z.object({
     })
     .strict()
     .optional(),
+  metrics: z
+    .record(z.string().regex(/^[a-zA-Z0-9_]{1,40}$/), z.number().finite().min(0).max(1000))
+    .optional(),
+  completesStage: z.boolean().optional(),
 })
 
 export async function recordStageCompletion(
@@ -40,27 +39,7 @@ export async function recordStageCompletion(
   }
 
   try {
-    // 3. read-modify-write in a transaction so two quick calls cannot double-count
-    const ref = adminDb.collection('portfolioProgress').doc(session.uid)
-
-    const reward = await adminDb.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref)
-      const current = normalizeProgressData(snapshot.data())
-      const { data, reward: stageReward } = applyStageCompletion(current, parsed.data)
-      const now = Timestamp.now()
-
-      transaction.set(ref, {
-        id: session.uid,
-        uid: session.uid,
-        ...data,
-        createdAt: snapshot.exists ? (snapshot.get('createdAt') ?? now) : now,
-        updatedAt: now,
-        _schemaVersion: 1,
-      })
-
-      return stageReward
-    })
-
+    const reward = await saveStageCompletion(session.uid, parsed.data) // 3. save it
     return { success: true, data: reward }
   } catch {
     return { success: false, error: 'Failed to save progress' }

@@ -77,7 +77,6 @@ export interface ConsultingSession {
   _schemaVersion: 1
 }
 
-
 export interface MeetingPrep {
   id: string
   uid: string
@@ -86,10 +85,10 @@ export interface MeetingPrep {
   selectedObjectives: string[]
   selectedQuestions: string[]
   objectiveScore?: number
-questionScore?: number
-totalScore?: number
-resultLabel?: string
-feedback?: string[]
+  questionScore?: number
+  totalScore?: number
+  resultLabel?: string
+  feedback?: string[]
   createdAt: Timestamp
   updatedAt: Timestamp
   _schemaVersion: 1
@@ -112,7 +111,13 @@ export interface PortfolioProgress {
   // Keyed `{stageId}_{clientKey}`, e.g. "5_sarah".
   stageResults?: Record<
     string,
-    { performance: 'strong' | 'developing'; xp: number; skillsAwarded: boolean }
+    {
+      performance: 'strong' | 'developing'
+      xp: number
+      skillsAwarded: boolean
+      completed: boolean // false while a level has scored the client but not finished
+      metrics: Record<string, number> // the level's scores, e.g. { leadScore: 60 }
+    }
   >
   badges?: string[] // one `stage-{n}` badge per stage first completed
   createdAt: Timestamp

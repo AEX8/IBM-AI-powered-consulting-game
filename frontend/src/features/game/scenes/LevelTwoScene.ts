@@ -2,6 +2,8 @@ import Phaser from 'phaser'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { getClientAuth } from '@/lib/firebase/client'
 import { getSessionsCollection } from '@/lib/firebase/firestore'
+import { recordStageCompletion } from '@/features/progress/actions/progress.actions'
+import { clientKeyFromPersonaId } from '@/features/progress/clients'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   createOutreachLaptopFlow,
@@ -15,6 +17,7 @@ const WALKABLE_BOTTOM = 704
 const PLAYER_SPEED = 220
 const LEVEL_ONE_COMPLETION_KEY = 'ibm-level-one-completed'
 const LEVEL_ONE_MET_CLIENTS_KEY = 'ibm-level-one-met-clients'
+const PASSING_OUTREACH_SCORE = 5
 const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 
@@ -709,7 +712,7 @@ if (user && personaId) {
     ) {
       throw new Error('Invalid grading response')
     }
-
+    void this.reportOutreachScore(submission.client.personaId, result.score)
     await minimumBreak
     lunchBreak.unlockContinue('View your grade', () => {
       lunchBreak.overlay.destroy(true)
@@ -728,6 +731,30 @@ if (user && personaId) {
     })
   }
 }
+    // Saving progress must never delay or break the lunch-break screen, so failures
+  // are logged and the caller does not wait for it.
+  private async reportOutreachScore(personaId: string | undefined, score: number): Promise<void> {
+    const personaKey = personaId ? clientKeyFromPersonaId(personaId) : null
+    if (!personaKey) return
+
+    // Only a passing email finishes the level; failed attempts still save their score.
+    const passed = score >= PASSING_OUTREACH_SCORE
+
+    try {
+      const result = await recordStageCompletion({
+        stageId: 2,
+        personaKey,
+        performance: passed ? 'strong' : 'developing',
+        metrics: { outreachScore: score },
+        completesStage: passed,
+      })
+
+      if (!result.success) console.error('Could not save the Level 2 score:', result.error)
+    } catch (error) {
+      console.error('Could not save the Level 2 score:', error)
+    }
+  }
+
   private showLunchBreakOverlay(): {
     overlay: Phaser.GameObjects.Container
     unlockContinue: (label: string, onContinue: () => void) => void

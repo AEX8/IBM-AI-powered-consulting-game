@@ -10,6 +10,8 @@ import type { ConsultingStage } from './landingData'
 
 type ConsultingRoomProps = {
   stage: ConsultingStage
+  // Stages the server says the player has completed (from their saved progress).
+  completedStageIds?: number[]
 }
 
 const LEVEL_ONE_UNLOCK_KEY = 'ibm-level-one-unlocked'
@@ -103,7 +105,7 @@ const roomImageDescriptionByType: Record<ConsultingStage['roomType'], string> = 
   'closing-room': 'Executive seating area for closing the deal',
 }
 
-export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
+export default function ConsultingRoom({ stage, completedStageIds = [] }: ConsultingRoomProps) {
   const [isUnlocking, setIsUnlocking] = useState(false)
   const levelThreeCompleted = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeCompletion, () => false)
   const levelThreeArrival = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeArrival, () => false)
@@ -203,7 +205,8 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
 
   const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneCompleted
 
-  const effectiveStatus: ConsultingStage['status'] =
+  // CHANGED: renamed from `effectiveStatus`. This is what the browser flags say.
+  const localStatus: ConsultingStage['status'] =
     levelThreeCompleted && stage.id <= 3 ? 'completed'
       : levelThreeCompleted && stage.id === 4 ? 'active'
       : (levelOneCompleted || levelTwoCompleted) && stage.id === 1
@@ -217,6 +220,18 @@ export default function ConsultingRoom({ stage }: ConsultingRoomProps) {
         : isInitialLevelOneLock
           ? 'locked'
           : stage.status
+
+  // NEW: saved progress is the source of truth. The browser flags above stay as a
+  // fallback for levels that do not report to it yet. Stage 6 has no page, so it
+  // stays locked.
+  const savedCompleted = completedStageIds.includes(stage.id)
+  const savedUnlocked = stage.id > 1 && stage.id <= 5 && completedStageIds.includes(stage.id - 1)
+
+  const effectiveStatus: ConsultingStage['status'] = savedCompleted
+    ? 'completed'
+    : savedUnlocked && localStatus === 'locked'
+      ? 'active'
+      : localStatus
 
   const isActive = effectiveStatus === 'active'
   const isCompleted = effectiveStatus === 'completed'

@@ -102,18 +102,18 @@ export default async function DashboardPage({ searchParams }: {
           >
             <div className="relative z-10 grid gap-1 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,2fr)] xl:h-full 2xl:grid-cols-[minmax(330px,0.9fr)_minmax(0,2fr)]">
               <div className="min-h-[520px] xl:h-full xl:min-h-0 [&>section]:h-full">
-                <ConsultingRoom stage={findLeadStage} />
+                <ConsultingRoom stage={findLeadStage} completedStageIds={progress.completedStageIds} />
               </div>
 
               <div className="grid gap-1 sm:grid-cols-2 xl:min-h-0 xl:grid-rows-2">
-                <ConsultingRoom stage={outreachStage} />
-                <ConsultingRoom stage={preparationStage} />
+                <ConsultingRoom stage={outreachStage} completedStageIds={progress.completedStageIds} />
+                <ConsultingRoom stage={preparationStage} completedStageIds={progress.completedStageIds} />
 
                 <div className="sm:col-span-2 xl:min-h-0">
                   <div className="grid gap-1 md:grid-cols-3 xl:h-full">
-                    <ConsultingRoom stage={closeDealStage} />
-                    <ConsultingRoom stage={proposalStage} />
-                    <ConsultingRoom stage={clientMeetingStage} />
+                    <ConsultingRoom stage={closeDealStage} completedStageIds={progress.completedStageIds} />
+                    <ConsultingRoom stage={proposalStage} completedStageIds={progress.completedStageIds} />
+                    <ConsultingRoom stage={clientMeetingStage} completedStageIds={progress.completedStageIds} />
                   </div>
                 </div>
               </div>
