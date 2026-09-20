@@ -48,11 +48,11 @@ export class ClientDialogueController {
   private readonly worldHeight: number
 
   private readonly onOpen: () => void
-private readonly onClose: () => void
-private readonly onClientCompleted: (
-  client: ClientDefinition,
-  coveredInfoPoints: string[]
-) => void
+  private readonly onClose: () => void
+  private readonly onClientCompleted: (
+    client: ClientDefinition,
+    coveredInfoPoints: string[]
+  ) => void
   private readonly interactionKey: Phaser.Input.Keyboard.Key
   private readonly proximityPrompt: Phaser.GameObjects.Container
 
@@ -580,8 +580,8 @@ private readonly onClientCompleted: (
       this.onClose()
 
       if (completedClient) {
-  this.onClientCompleted(completedClient, coveredInfoPoints)
-}
+        this.onClientCompleted(completedClient, coveredInfoPoints)
+      }
     })
   }
 }

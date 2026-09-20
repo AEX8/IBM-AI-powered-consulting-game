@@ -2,6 +2,8 @@ import Phaser from 'phaser'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { getClientAuth } from '@/lib/firebase/client'
 import { getSessionsCollection } from '@/lib/firebase/firestore'
+import { recordStageCompletion } from '@/features/progress/actions/progress.actions'
+import { clientKeyFromPersonaId } from '@/features/progress/clients'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   ClientDialogueController,
@@ -160,8 +162,8 @@ export class LevelOneScene extends Phaser.Scene {
       },
 
       onClientCompleted: (client, coveredInfoPoints) => {
-  this.handleClientCompleted(client, coveredInfoPoints)
-},
+        this.handleClientCompleted(client, coveredInfoPoints)
+      },
     })
 
     this.startArrivalSequence()
@@ -360,22 +362,38 @@ export class LevelOneScene extends Phaser.Scene {
     this.effects.addIdleBreathing(this.goodClient, 500)
     this.effects.addIdleBreathing(this.badClient, 900)
 
-    this.clientOverview = this.add.text(0, 0, '', {
-      fontFamily: 'Arial', fontSize: '17px', color: '#2c2c2a',
-      backgroundColor: '#fff7e4', padding: { x: 16, y: 12 },
-      wordWrap: { width: 290 }, lineSpacing: 5,
-    }).setOrigin(0.5, 1).setDepth(2000).setVisible(false)
+    this.clientOverview = this.add
+      .text(0, 0, '', {
+        fontFamily: 'Arial',
+        fontSize: '17px',
+        color: '#2c2c2a',
+        backgroundColor: '#fff7e4',
+        padding: { x: 16, y: 12 },
+        wordWrap: { width: 290 },
+        lineSpacing: 5,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(2000)
+      .setVisible(false)
 
     const summaries: Array<[Phaser.GameObjects.Image, string]> = [
-      [this.goodClient, 'Sarah Chen | COO\nACMD Manufacturing\nMain issue: supply-chain delays and disconnected operational data.'],
-      [this.badClient, 'David Palte | CTO\nMeridian Retail Group\nMain issue: fragmented customer data makes business decisions unreliable.'],
+      [
+        this.goodClient,
+        'Sarah Chen | COO\nACMD Manufacturing\nMain issue: supply-chain delays and disconnected operational data.',
+      ],
+      [
+        this.badClient,
+        'David Palte | CTO\nMeridian Retail Group\nMain issue: fragmented customer data makes business decisions unreliable.',
+      ],
     ]
     for (const [sprite, summary] of summaries) {
       sprite.setInteractive({ useHandCursor: true })
       sprite.on('pointerover', () => {
         if (this.interfaceOpen || !this.controlsEnabled) return
-        this.clientOverview?.setText(summary)
-          .setPosition(sprite.x, sprite.y - CHARACTER_HEIGHT / 2 - 12).setVisible(true)
+        this.clientOverview
+          ?.setText(summary)
+          .setPosition(sprite.x, sprite.y - CHARACTER_HEIGHT / 2 - 12)
+          .setVisible(true)
       })
       sprite.on('pointerout', () => this.clientOverview?.setVisible(false))
       sprite.on('pointerdown', () => this.clientOverview?.setVisible(false))
@@ -1123,40 +1141,63 @@ export class LevelOneScene extends Phaser.Scene {
     this.managerPanel = undefined
   }
 
-  private handleClientCompleted(
-  client: ClientDefinition,
-  coveredInfoPoints: string[]
-): void {
+    // Level 1 scores every client, but the level only finishes once all required
+  // clients are done, so only that final call completes the stage.
+  private async reportClientScore(
+    client: ClientDefinition,
+    leadScore: number,
+    relationshipState: 'cold' | 'warm' | 'qualified'
+  ): Promise<void> {
+    const personaKey = client.personaId ? clientKeyFromPersonaId(client.personaId) : null
+    if (!personaKey) return
+
+    const finishesLevel =
+      !this.levelCompletionStarted && this.completedClientNames.size >= this.requiredClientCount
+
+    try {
+      const result = await recordStageCompletion({
+        stageId: 1,
+        personaKey,
+        performance: relationshipState === 'qualified' ? 'strong' : 'developing',
+        metrics: { leadScore },
+        completesStage: finishesLevel,
+      })
+
+      if (!result.success) console.error('Could not save the Level 1 score:', result.error)
+    } catch (error) {
+      console.error('Could not save the Level 1 score:', error)
+    }
+  }
+
+  private handleClientCompleted(client: ClientDefinition, coveredInfoPoints: string[]): void {
     const leadScore = Math.min(100, coveredInfoPoints.length * 15)
 
-const relationshipState: 'cold' | 'warm' | 'qualified' =
-  leadScore >= 75 ? 'qualified' : leadScore >= 45 ? 'warm' : 'cold'
+    const relationshipState: 'cold' | 'warm' | 'qualified' =
+      leadScore >= 75 ? 'qualified' : leadScore >= 45 ? 'warm' : 'cold'
     this.completedClientNames.add(client.name)
+    void this.reportClientScore(client, leadScore, relationshipState)
     const user = getClientAuth().currentUser
     if (user && client.personaId) {
-  const sessionRef = doc(
-    getSessionsCollection(),
-    `${user.uid}_${client.personaId}_level1`
-  )
+      const sessionRef = doc(getSessionsCollection(), `${user.uid}_${client.personaId}_level1`)
 
-  void setDoc(
-    sessionRef,
-    {
-      id: sessionRef.id,
-      uid: user.uid,
-      personaId: client.personaId,
-      level: 1,
-      status: 'completed',
-      leadScore,
-      relationshipState,
-      messages: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      _schemaVersion: 1,
-    },
-    { merge: true }
-  )
-}
+      void setDoc(
+        sessionRef,
+        {
+          id: sessionRef.id,
+          uid: user.uid,
+          personaId: client.personaId,
+          level: 1,
+          status: 'completed',
+          leadScore,
+          relationshipState,
+          messages: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          _schemaVersion: 1,
+        },
+        { merge: true }
+      )
+    }
     // Preserve clients completed earlier in this browser session or a previous
     // visit. Replacing local storage with only the latest in-memory client caused
     // Level 2 to occasionally receive a one-card selection list.

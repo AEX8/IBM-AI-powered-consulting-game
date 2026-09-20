@@ -1,4 +1,9 @@
 import Phaser from 'phaser'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { getClientAuth } from '@/lib/firebase/client'
+import { getSessionsCollection } from '@/lib/firebase/firestore'
+import { recordStageCompletion } from '@/features/progress/actions/progress.actions'
+import { clientKeyFromPersonaId } from '@/features/progress/clients'
 import { LevelOneEffects } from '../effects/LevelOneEffects'
 import {
   createOutreachLaptopFlow,
@@ -12,6 +17,7 @@ const WALKABLE_BOTTOM = 704
 const PLAYER_SPEED = 220
 const LEVEL_ONE_COMPLETION_KEY = 'ibm-level-one-completed'
 const LEVEL_ONE_MET_CLIENTS_KEY = 'ibm-level-one-met-clients'
+const PASSING_OUTREACH_SCORE = 5
 const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 
@@ -51,7 +57,7 @@ export class LevelTwoScene extends Phaser.Scene {
   private lastFootstepAt = 0
   private notes = ''
 
-  constructor() {
+  constructor(private readonly preparationMode = false) {
     super('LevelTwoScene')
   }
 
@@ -573,6 +579,14 @@ export class LevelTwoScene extends Phaser.Scene {
 
   private openLaptopOverlay(): void {
     if (this.laptopOverlay) return
+    // Level 3 reuses the room and complete sitting sequence. Only its workstation
+    // content changes; outreach submission and grading remain on the Level 2 path.
+    if (this.preparationMode) {
+      this.laptopOverlay = this.add.container(0, 0)
+      this.game.events.emit('preparation:open')
+      this.game.events.once('preparation:close', () => this.closeLaptopOverlay())
+      return
+    }
 
     // Only the room dimmer remains a Phaser canvas object. The complete laptop and
     // task panel are rendered once by OutreachLaptopFlow, avoiding the duplicated
@@ -592,7 +606,7 @@ export class LevelTwoScene extends Phaser.Scene {
 
     // The DOM layer recreates wireframe pages 2-10 while the Phaser objects above
     // retain the physical laptop frame and boot animation. It exposes one clean
-    // submission boundary for Ibrahim's later grading and lunch-break card.
+    // submission boundary for grading and the lunch-break screen.
     const outreachFlow = createOutreachLaptopFlow(this, {
       clients,
       onClose: () => this.closeLaptopOverlay(),
@@ -619,6 +633,7 @@ export class LevelTwoScene extends Phaser.Scene {
     })
   }
 
+
   
     private async handleOutreachEmailSent(
   submission: OutreachEmailSubmission
@@ -628,7 +643,31 @@ export class LevelTwoScene extends Phaser.Scene {
       detail: submission,
     })
   )
+  const user = getClientAuth().currentUser
+const personaId = submission.client.personaId
 
+if (user && personaId) {
+  const sessionRef = doc(
+    getSessionsCollection(),
+    `${user.uid}_${personaId}_level2`
+  )
+
+  await setDoc(
+    sessionRef,
+    {
+      id: sessionRef.id,
+      uid: user.uid,
+      personaId,
+      level: 2,
+      status: 'completed',
+      messages: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      _schemaVersion: 1,
+    },
+    { merge: true }
+  )
+}
   this.showToast(`Email sent to ${submission.client.name}`)
 
   this.closeLaptopOverlay()
@@ -673,7 +712,7 @@ export class LevelTwoScene extends Phaser.Scene {
     ) {
       throw new Error('Invalid grading response')
     }
-
+    void this.reportOutreachScore(submission.client.personaId, result.score)
     await minimumBreak
     lunchBreak.unlockContinue('View your grade', () => {
       lunchBreak.overlay.destroy(true)
@@ -692,6 +731,30 @@ export class LevelTwoScene extends Phaser.Scene {
     })
   }
 }
+    // Saving progress must never delay or break the lunch-break screen, so failures
+  // are logged and the caller does not wait for it.
+  private async reportOutreachScore(personaId: string | undefined, score: number): Promise<void> {
+    const personaKey = personaId ? clientKeyFromPersonaId(personaId) : null
+    if (!personaKey) return
+
+    // Only a passing email finishes the level; failed attempts still save their score.
+    const passed = score >= PASSING_OUTREACH_SCORE
+
+    try {
+      const result = await recordStageCompletion({
+        stageId: 2,
+        personaKey,
+        performance: passed ? 'strong' : 'developing',
+        metrics: { outreachScore: score },
+        completesStage: passed,
+      })
+
+      if (!result.success) console.error('Could not save the Level 2 score:', result.error)
+    } catch (error) {
+      console.error('Could not save the Level 2 score:', error)
+    }
+  }
+
   private showLunchBreakOverlay(): {
     overlay: Phaser.GameObjects.Container
     unlockContinue: (label: string, onContinue: () => void) => void
@@ -856,7 +919,7 @@ export class LevelTwoScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    // Keep Ibrahim's scoring decision unchanged; this method only presents it.
+    // Display the grading result without changing the score.
     const passed = score !== null && score >= 5
     const statusText = this.add
       .text(

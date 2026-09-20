@@ -1,4 +1,5 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -44,29 +45,60 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() && isOwner(userId)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.role == 'user';  // only admin SDK can set 'admin' role
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'email',
+          'role',
+          'createdAt',
+          'updatedAt',
+          '_schemaVersion'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'photoURL',
+          'role',
+          'createdAt',
+          'updatedAt',
+          '_schemaVersion'
+        ])
+        && request.resource.data.role == 'user';
 
       allow update: if isAuthenticated() && isOwner(userId)
-        && request.resource.data.uid == resource.data.uid    // uid is immutable
-        && request.resource.data.role == resource.data.role  // role is immutable by user
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion']);
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'photoURL',
+          'role',
+          'createdAt',
+          'updatedAt',
+          '_schemaVersion'
+        ]);
 
-      allow delete: if false; // soft-delete only — set deletedAt field instead
+      allow delete: if false;
     }
 
     // notes/{noteId}
     // Each user can only read, create, and update their own notes.
     // Deletes are disabled — soft-delete only.
     match /notes/{noteId} {
-      allow read:   if isAuthenticated() && isOwner(resource.data.uid);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.uid);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid)
+      allow read: if isAuthenticated() && isOwner(resource.data.uid);
+
+      allow create: if isAuthenticated()
+                    && isOwner(request.resource.data.uid);
+
+      allow update: if isAuthenticated()
+                    && isOwner(resource.data.uid)
                     && request.resource.data.uid == resource.data.uid;
+
       allow delete: if false;
     }
-        // personas/{personaId}
+
+    // personas/{personaId}
     // Persona definitions are readable by authenticated users.
     // Client-side writes are disabled so persona prompts cannot be modified
     // by players. Persona data should be managed through trusted server/admin code.
@@ -105,6 +137,50 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // meetingPreps/{prepId}
+    // Level 3 meeting preparation belongs to a single authenticated user
+    // and is tied to one consulting session and persona.
+    match /meetingPreps/{prepId} {
+      allow read: if isAuthenticated()
+                  && (isOwner(resource.data.uid) || isAdmin());
+
+      allow create: if isAuthenticated()
+                    && isOwner(request.resource.data.uid)
+                    && request.resource.data.keys().hasAll([
+                      'id',
+                      'uid',
+                      'sessionId',
+                      'personaId',
+                      'selectedObjectives',
+                      'selectedQuestions',
+                      'createdAt',
+                      'updatedAt',
+                      '_schemaVersion'
+                    ])
+                    && request.resource.data.keys().hasOnly([
+                      'id',
+                      'uid',
+                      'sessionId',
+                      'personaId',
+                      'selectedObjectives',
+                      'selectedQuestions',
+                      'createdAt',
+                      'updatedAt',
+                      '_schemaVersion'
+                    ])
+                    && request.resource.data._schemaVersion == 1;
+
+      allow update: if isAuthenticated()
+                    && isOwner(resource.data.uid)
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.sessionId == resource.data.sessionId
+                    && request.resource.data.personaId == resource.data.personaId
+                    && request.resource.data._schemaVersion == 1;
+
+      allow delete: if false;
+    }
+
     // portfolioProgress/{progressId}
     // Each user can only access and update their own consulting progress.
     match /portfolioProgress/{progressId} {
@@ -133,10 +209,6 @@ service cloud.firestore {
 
       allow delete: if false;
     }
-
-
-
-
 
     // Add new collection rules above this comment using the /firebase-collection skill.
 

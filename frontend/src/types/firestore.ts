@@ -77,12 +77,72 @@ export interface ConsultingSession {
   _schemaVersion: 1
 }
 
-export interface PortfolioProgress {
+export interface MeetingPrep {
   id: string
   uid: string
+  sessionId: string
+  personaId: string
+  selectedObjectives: string[]
+  selectedQuestions: string[]
+  objectiveScore?: number
+  questionScore?: number
+  totalScore?: number
+  resultLabel?: string
+  feedback?: string[]
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  _schemaVersion: 1
+}
+
+// One document per Level 4 client meeting attempt. Written only by the server.
+export interface Meeting {
+  id: string
+  uid: string
+  personaId: string
+  personaKey: string | null // e.g. "sarah"
+  transcript: Array<{ role: 'player' | 'client'; content: string }>
+  prep: { objectives: string[]; questions: string[] } | null
+  scores: {
+    relationship: number
+    trust: number
+    understanding: number
+    dealPotential: number
+    patience: number
+  }
+  overall: number
+  passed: boolean
+  feedback: string
+  improvements: string[]
+  createdAt: Timestamp
+  _schemaVersion: 1
+}
+
+export interface PortfolioProgress {
+  id: string // equals the player's uid
+  uid: string
   completedPersonaIds: string[]
-  completedLevels: number[]
+  completedLevels: number[] // stage ids (1-6) the player has completed
   totalXp: number
+  // Added with the home-page stats work. Optional so older documents stay valid.
+  skillStats?: {
+    clientDiscovery: number
+    businessAcumen: number
+    solutionDesign: number
+    clientManagement: number
+    dealSuccess: number
+  }
+  // Keyed `{stageId}_{clientKey}`, e.g. "5_sarah".
+  stageResults?: Record<
+    string,
+    {
+      performance: 'strong' | 'developing'
+      xp: number
+      skillsAwarded: boolean
+      completed: boolean // false while a level has scored the client but not finished
+      metrics: Record<string, number> // the level's scores, e.g. { leadScore: 60 }
+    }
+  >
+  badges?: string[] // one `stage-{n}` badge per stage first completed
   createdAt: Timestamp
   updatedAt: Timestamp
   _schemaVersion: 1
