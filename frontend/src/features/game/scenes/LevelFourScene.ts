@@ -1,10 +1,13 @@
 import Phaser from 'phaser'
+import { openMeetingOverlay, type MeetingOverlayHandle } from '@/features/meeting/MeetingOverlay'
+import type { MeetingPrepContext } from '@/features/meeting/prompts'
 import { SELECTED_OUTREACH_CLIENT_KEY } from '../dialogue/OutreachLaptopFlow'
 
 const WORLD_WIDTH = 1440
 const WORLD_HEIGHT = 720
 const WALKABLE_TOP = 365
 const PLAYER_SPEED = 220
+const LEVEL_THREE_PREPARATION_KEY = 'ibm-level-three-preparation'
 
 type MeetingClient = {
   name: string
@@ -15,9 +18,10 @@ type MeetingClient = {
   opening: string
 }
 
-type MeetingMessage = {
-  speaker: 'client' | 'player'
-  text: string
+type SavedPrep = {
+  personaId: string
+  objectives: string[]
+  questions: string[]
 }
 
 const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
@@ -41,19 +45,9 @@ const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   },
 }
 
-const MEETING_CHOICES = [
-  'Confirm the client’s most urgent priority',
-  'Explore the impact on customers and teams',
-  'Ask what a successful outcome looks like',
-  'Discuss stakeholders and practical next steps',
-]
-
 /**
- * Playable Level 4 client-meeting room.
- *
- * This branch owns the visual scene and interaction flow only. The Level 3 data
- * handoff, AI prompt injection and grading remain clean integration seams for the
- * separate backend card, avoiding duplicate or conflicting business logic here.
+ * Playable Level 4 client-meeting room. The scene owns the room and the walk to the
+ * desk; the conversation itself lives in features/meeting/MeetingOverlay.
  */
 export class LevelFourScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Image
@@ -64,20 +58,14 @@ export class LevelFourScene extends Phaser.Scene {
   private wasd!: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
   private interactionKey!: Phaser.Input.Keyboard.Key
   private interactionPrompt!: Phaser.GameObjects.Container
-  private meetingOverlay?: HTMLDivElement
+  private meetingOverlay?: MeetingOverlayHandle
   private notebookOverlay?: Phaser.GameObjects.DOMElement
   private obstacles: Phaser.GameObjects.Zone[] = []
   private playerShadow!: Phaser.GameObjects.Ellipse
   private lastFootstepAt = 0
   private meetingSequenceActive = false
-  private meetingPrep?: {
-  sessionId: string
-  personaId: string
-  selectedObjectives: string[]
-  selectedQuestions: string[]
-  totalScore: number
-  resultLabel: string
-}
+  private savedPrep?: SavedPrep
+
   constructor() {
     super('LevelFourScene')
   }
@@ -105,7 +93,7 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   create(): void {
-    void this.loadMeetingPrep()
+    this.savedPrep = this.readSavedPrep()
     this.physics.world.setBounds(0, WALKABLE_TOP, WORLD_WIDTH, WORLD_HEIGHT - WALKABLE_TOP)
     this.createTilemapRoom()
     this.createFurniture()
@@ -117,7 +105,7 @@ export class LevelFourScene extends Phaser.Scene {
     this.interactionPrompt = this.createInteractionPrompt()
     this.createInterfaceCamera(worldObjects)
     this.cameras.main.fadeIn(500, 44, 44, 42)
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.meetingOverlay?.remove())
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.meetingOverlay?.destroy())
   }
 
   override update(): void {
@@ -135,55 +123,43 @@ export class LevelFourScene extends Phaser.Scene {
     this.playerShadow.setPosition(this.player.x, this.player.y + 134)
   }
 
-  /** Resolve the Level 2 selection, while retaining query-string previews for QA. */
+  /**
+   * Level 3 stores the exact objectives and questions the player reviewed. They are
+   * only used if they were prepared for the client being met now.
+   */
+  private readSavedPrep(): SavedPrep | undefined {
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(LEVEL_THREE_PREPARATION_KEY) ?? 'null'
+      ) as Partial<Record<'personaId' | 'objectives' | 'questions', unknown>> | null
 
-  private async loadMeetingPrep(): Promise<void> {
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem('ibm-level-three-preparation') ?? 'null'
-    )
+      if (!saved || typeof saved.personaId !== 'string') return undefined
 
-    if (
-      !saved ||
-      typeof saved.personaId !== 'string' ||
-      typeof saved.submissionId !== 'string'
-    ) {
-      return
+      const toList = (value: unknown): string[] =>
+        Array.isArray(value)
+          ? value.filter((item): item is string => typeof item === 'string').slice(0, 3)
+          : []
+
+      return {
+        personaId: saved.personaId,
+        objectives: toList(saved.objectives),
+        questions: toList(saved.questions),
+      }
+    } catch {
+      // Damaged browser data must never stop the room from loading.
+      return undefined
     }
-
-    const response = await fetch(
-      `/api/meeting-prep/submissions?sessionId=${encodeURIComponent(
-        saved.submissionId
-      )}&personaId=${encodeURIComponent(saved.personaId)}`
-    )
-
-    if (!response.ok) {
-      return
-    }
-
-    const data = await response.json()
-
-    if (!data.prep) {
-      return
-    }
-
-    this.meetingPrep = {
-      sessionId: saved.submissionId,
-      personaId: data.prep.personaId,
-      selectedObjectives: data.prep.selectedObjectives ?? [],
-      selectedQuestions: data.prep.selectedQuestions ?? [],
-      totalScore: data.prep.totalScore ?? 0,
-      resultLabel: data.prep.resultLabel ?? '',
-    }
-  } catch (error) {
-    console.error('Failed to load meeting preparation for Level 4:', error)
   }
-}
 
+  private currentPrep(): MeetingPrepContext | undefined {
+    const prep = this.savedPrep
 
+    if (!prep || prep.personaId !== this.client.personaId) return undefined
 
+    return { objectives: prep.objectives, questions: prep.questions }
+  }
 
-
+  /** Resolve the Level 2 selection, while retaining query-string previews for QA. */
   private resolveClient(): MeetingClient {
     const requested = new URLSearchParams(window.location.search).get('client')?.toLowerCase()
     if (requested === 'sarah') return CLIENTS.sarah
@@ -493,165 +469,20 @@ export class LevelFourScene extends Phaser.Scene {
     // The camera crops the seated player out naturally; opening a conversation
     // must never change the player's visibility.
 
-    const messages: MeetingMessage[] = [{ speaker: 'client', text: this.client.opening }]
-    let freeReplies = 0
-    let mode: 'choice' | 'free' | 'feedback' = 'choice'
-    // Phaser's DOM container inherits the canvas camera transform even when the
-    // object is ignored by that camera. A native fixed overlay is therefore the
-    // reliable equivalent of Level 1's camera-fixed canvas panel for this HTML UI.
-    const root = document.createElement('div')
-    root.dataset.levelFourMeeting = 'true'
-    root.className = 'l4-viewport-overlay'
-    document.body.appendChild(root)
-    this.meetingOverlay = root
-
-    const escapeHtml = (value: string) =>
-      value.replace(/[&<>'"]/g, (character) => {
-        const entities: Record<string, string> = {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          "'": '&#39;',
-          '"': '&quot;',
-        }
-        return entities[character] ?? character
-      })
-
-    const render = () => {
-      const transcript = messages
-        .map(
-          (message) =>
-            `<div class="l4-message ${message.speaker}"><img src="/assets/characters/npcs/${message.speaker === 'client' ? this.client.portrait : 'character-03.png'}" alt=""><p>${escapeHtml(message.text)}</p></div>`
-        )
-        .join('')
-      const controls = this.meetingControls(mode, freeReplies, escapeHtml)
-
-      root.innerHTML = `
-        <style>${this.meetingStyles()}</style>
-        <div class="l4-shell">
-          <section class="l4-panel">
-            <button class="l4-close" data-close aria-label="Close meeting">×</button>
-            ${
-              mode === 'feedback'
-                ? controls
-                : `<header class="l4-head">${escapeHtml(this.client.name)}</header><div class="l4-transcript" data-transcript>${transcript}</div><div class="l4-controls">${controls}</div>`
-            }
-          </section>
-        </div>`
-
-      root.querySelector('[data-close]')?.addEventListener('click', () => this.closeMeeting())
-      root.querySelectorAll<HTMLElement>('[data-choice]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const selectedChoice = Number(button.dataset.choice)
-          messages.push({
-            speaker: 'player',
-            text: MEETING_CHOICES[selectedChoice] ?? MEETING_CHOICES[0]!,
-          })
-          messages.push({ speaker: 'client', text: this.choiceResponse(selectedChoice) })
-          mode = 'free'
-          render()
-        })
-      })
-
-      const reply = root.querySelector<HTMLTextAreaElement>('[data-reply]')
-      const count = root.querySelector<HTMLElement>('[data-count]')
-      for (const eventName of ['keydown', 'keyup'] as const) {
-        reply?.addEventListener(eventName, (event) => event.stopPropagation())
-      }
-      reply?.addEventListener('input', () => {
-        if (count) count.textContent = `${120 - reply.value.length} characters remaining`
-      })
-      root.querySelector('[data-send]')?.addEventListener('click', () => {
-        const response = reply?.value.trim()
-        if (!response) return
-        messages.push({ speaker: 'player', text: response })
-        messages.push({
-          speaker: 'client',
-          text:
-            freeReplies === 0
-              ? 'That direction makes sense. I would want the first step to stay focused and show a practical benefit quickly.'
-              : 'Good, that gives me a clearer picture of the approach and what you would need from our team.',
-        })
-        freeReplies += 1
-        render()
-      })
-      root.querySelector('[data-end]')?.addEventListener('click', () => {
-        mode = 'feedback'
-        render()
-      })
-      root.querySelector('[data-back]')?.addEventListener('click', () => this.closeMeeting())
-
-      const transcriptNode = root.querySelector<HTMLElement>('[data-transcript]')
-      if (transcriptNode) transcriptNode.scrollTop = transcriptNode.scrollHeight
-    }
-
-    render()
-  }
-
-  private meetingControls(
-    mode: 'choice' | 'free' | 'feedback',
-    freeReplies: number,
-    escapeHtml: (value: string) => string
-  ): string {
-    if (mode === 'choice') {
-      return `<div class="l4-choices">${MEETING_CHOICES.map(
-        (choice, index) =>
-          `<button data-choice="${index}">${index + 1}. ${escapeHtml(choice)}</button>`
-      ).join('')}</div>`
-    }
-
-    if (mode === 'free') {
-      return `<div class="l4-compose"><textarea maxlength="120" data-reply placeholder="Type your response…"></textarea><span data-count>120 characters remaining</span><button data-send aria-label="Send response">➜</button>${freeReplies >= 2 ? '<button class="l4-end" data-end>End meeting</button>' : ''}</div>`
-    }
-
-    return `<div class="l4-feedback"><div class="l4-score">72</div><h2>Meeting Feedback</h2><h3>Relationship Health</h3><div class="l4-meter"><i style="width:72%"></i></div><h3>Deal Potential</h3><div class="l4-meter amber"><i style="width:68%"></i></div><h3>Meeting summary</h3><p>You established the client’s priority, explored business impact and moved the conversation toward a practical next step.</p><button data-back>Back to Office</button></div>`
-  }
-
-  private choiceResponse(choice: number): string {
-    const response = (
-      [
-        'The immediate priority is a reliable shared view that helps the team act without waiting on manual reconciliation.',
-        'The inconsistency slows decisions and makes it harder to deliver a dependable experience for customers.',
-        'Success means clearer decisions, measurable improvement and an approach the team can actually maintain.',
-        'I need the operational owners involved early, with a focused next step that proves value before a larger commitment.',
-      ][choice] ?? 'That is a useful place to start. Please tell me how you would move it forward.'
-      )
-      if (!this.meetingPrep) {
-  return response
-}
-
-const preparedObjective = this.meetingPrep.selectedObjectives[0]
-const preparedQuestion = this.meetingPrep.selectedQuestions[choice]
-  ?? this.meetingPrep.selectedQuestions[0]
-
-if (preparedQuestion) {
-  return `${response} Your preparation also highlighted "${preparedQuestion}", which is relevant to this discussion.`
-}
-
-if (preparedObjective) {
-  return `${response} That also connects with the meeting objective you prepared: "${preparedObjective}".`
-}
-
-return response
-    
-  }
-
-  private meetingStyles(): string {
-    return `
-      .l4-viewport-overlay{position:fixed;z-index:9999;top:18px;right:18px;width:min(650px,46vw);height:calc(100vh - 36px)}
-      .l4-shell,.l4-shell *{box-sizing:border-box}.l4-shell{width:100%;height:100%;padding:10px;background:#b98900;border:7px solid #2c2c2a;border-radius:18px;font-family:Arial,sans-serif;color:#2c2c2a;box-shadow:0 20px 48px #0008;animation:l4-open .45s cubic-bezier(.2,.9,.3,1.2)}
-      .l4-panel{position:relative;display:flex;height:100%;min-height:0;flex-direction:column;overflow:hidden;border:5px solid #2c2c2a;border-radius:14px;background:#f4f7f9}.l4-head{height:92px;flex:0 0 92px;display:grid;place-items:center;background:#b98900;border-bottom:5px solid #2c2c2a;font-size:27px;font-weight:800}.l4-close{position:absolute;right:15px;top:16px;z-index:4;width:48px;height:48px;border:4px solid #2c2c2a;border-radius:50%;background:#fff;font-size:28px;cursor:pointer;transition:.18s}.l4-close:hover{transform:rotate(90deg) scale(1.08)}
-      .l4-transcript{min-height:0;flex:1;overflow-y:auto;padding:22px}.l4-message{display:flex;gap:12px;align-items:flex-start;margin:0 0 16px}.l4-message.player{flex-direction:row-reverse}.l4-message img{width:54px;height:54px;border:3px solid #2c2c2a;border-radius:50%;background:#fff;object-fit:contain}.l4-message p{max-width:380px;margin:0;border:2px solid #9ba4aa;border-radius:14px;background:#fff;padding:13px 15px;font-size:16px;line-height:1.38}.l4-message.player p{border-color:#6f925f;background:#edf5e9}
-      .l4-controls{flex:0 0 auto;padding:14px 18px 18px}.l4-choices{display:grid;gap:8px;border:3px solid #8f5b28;border-radius:15px;background:#fff8e7;padding:10px}.l4-choices button{border:3px solid #2c2c2a;border-radius:11px;background:#5f914f;padding:12px 15px;color:#fff;text-align:left;font-size:14px;font-weight:700;cursor:pointer;transition:.16s}.l4-choices button:hover{transform:translateX(5px);filter:brightness(1.08)}
-      .l4-compose{position:relative;display:grid;grid-template-columns:1fr 62px;gap:9px}.l4-compose textarea{height:82px;border:3px solid #c98a3e;border-radius:13px;padding:12px 14px;font:16px Arial;resize:none}.l4-compose [data-count]{position:absolute;left:6px;top:87px;color:#777;font-size:12px}.l4-compose [data-send]{border:4px solid #2c2c2a;border-radius:13px;background:#5f914f;color:#fff;font-size:28px;cursor:pointer}.l4-end{grid-column:1/-1;margin-top:15px;border:3px solid #2c2c2a;border-radius:10px;background:#1f4f78;padding:10px;color:#fff;font-weight:700;cursor:pointer}
-      .l4-feedback{position:absolute;inset:0;padding:118px 38px 28px;background:#f4f7f9}.l4-feedback h2{position:absolute;left:0;right:0;top:0;height:90px;margin:0;display:grid;place-items:center;background:#b98900;border-bottom:5px solid #2c2c2a;color:#fff}.l4-score{position:absolute;left:18px;top:28px;z-index:2;display:grid;width:132px;height:132px;place-items:center;border:6px solid #2c2c2a;border-radius:50%;background:#fff;font-size:55px;font-weight:900;animation:l4-score .7s ease-out}.l4-feedback h3{margin:18px 0 7px}.l4-feedback p{font-size:16px;line-height:1.5}.l4-meter{height:22px;border-radius:14px;background:#d5d1c8;overflow:hidden}.l4-meter i{display:block;height:100%;background:#5f914f;animation:l4-meter 1s ease-out}.l4-meter.amber i{background:#c98a3e}.l4-feedback button{position:absolute;right:36px;bottom:32px;border:4px solid #2c2c2a;border-radius:11px;background:#5f914f;padding:14px 30px;color:#fff;font-size:18px;font-weight:800;box-shadow:5px 5px 0 #2c2c2a;cursor:pointer}
-      @keyframes l4-open{from{opacity:0;transform:translateX(90px)}to{opacity:1;transform:none}}@keyframes l4-score{from{transform:scale(.2) rotate(-30deg)}}@keyframes l4-meter{from{width:0}}
-      @media(prefers-reduced-motion:reduce){.l4-shell *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
-    `
+    this.meetingOverlay = openMeetingOverlay({
+      client: {
+        name: this.client.name,
+        personaId: this.client.personaId,
+        portrait: this.client.portrait,
+        opening: this.client.opening,
+      },
+      getPrep: () => this.currentPrep(),
+      onClose: () => this.closeMeeting(),
+    })
   }
 
   private closeMeeting(): void {
-    this.meetingOverlay?.remove()
+    this.meetingOverlay?.destroy()
     this.meetingOverlay = undefined
     this.cameras.main.pan(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 450, 'Sine.easeInOut')
     this.cameras.main.zoomTo(1, 450, 'Sine.easeInOut')
