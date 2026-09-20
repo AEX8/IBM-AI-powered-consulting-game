@@ -94,6 +94,29 @@ export interface MeetingPrep {
   _schemaVersion: 1
 }
 
+// One document per Level 4 client meeting attempt. Written only by the server.
+export interface Meeting {
+  id: string
+  uid: string
+  personaId: string
+  personaKey: string | null // e.g. "sarah"
+  transcript: Array<{ role: 'player' | 'client'; content: string }>
+  prep: { objectives: string[]; questions: string[] } | null
+  scores: {
+    relationship: number
+    trust: number
+    understanding: number
+    dealPotential: number
+    patience: number
+  }
+  overall: number
+  passed: boolean
+  feedback: string
+  improvements: string[]
+  createdAt: Timestamp
+  _schemaVersion: 1
+}
+
 export interface PortfolioProgress {
   id: string // equals the player's uid
   uid: string
