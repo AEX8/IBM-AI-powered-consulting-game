@@ -46,6 +46,11 @@ export function canStartClosing(progress: ProgressData, personaKey: string): boo
   return completedClientKeys(progress, PROPOSAL_STAGE_ID).includes(personaKey)
 }
 
+// Number of clients the player has signed a contract with (portfolio stat).
+export function contractsClosed(progress: ProgressData): number {
+  return completedClientKeys(progress, CLOSING_STAGE_ID).length
+}
+
 function toScoreNumber(value: unknown): number | null {
   const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
 
