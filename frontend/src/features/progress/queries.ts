@@ -7,7 +7,7 @@ import {
   type ProgressData,
 } from './progress'
 
-async function getProgressData(uid: string): Promise<ProgressData> {
+export async function getProgressData(uid: string): Promise<ProgressData> {
   const snapshot = await adminDb.collection('portfolioProgress').doc(uid).get()
   return normalizeProgressData(snapshot.data())
 }
