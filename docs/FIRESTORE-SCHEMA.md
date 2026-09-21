@@ -150,4 +150,37 @@ One document per Level 4 client meeting attempt, written by `POST /api/meeting/s
 
 
 **Deletion:** Hard-delete is disabled.
+
+
+---
+
+## `contracts` collection
+
+**Path:** `/contracts/{contractId}` (auto-generated id)
+
+**Access:** Server only (Admin SDK). No client rules, so browsers cannot read or write it. Players read their own contracts through `GET /api/closing/contracts`.
+
+One document per Level 6 deal attempt (signed, stalled or lost), written by `POST /api/closing/finalise`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Matches the document ID |
+| `uid` | `string` | Yes | Firebase UID of the player |
+| `personaKey` | `string` | Yes | Short client key, e.g. `sarah` |
+| `terms` | `map` | Yes | `scope`, `investment`, `startDate`, `paymentTerms` (strings) the player put forward |
+| `exchanges` | `Array<{ concern, answer }>` | Yes | The client's final concerns and the player's answers |
+| `scores` | `map` | Yes | `terms`, `concerns`, `relationship`, `clarity` (0-100 each) |
+| `overall` | `number` | Yes | Average of the four scores |
+| `outcome` | `string` | Yes | `signed` (overall 60 or more), `stalled` (40 to 59) or `lost` (below 40) |
+| `feedback` | `string` | Yes | Written summary shown to the player |
+| `improvements` | `string[]` | Yes | Two improvement tips |
+| `closingLine` | `string` | Yes | The client's decision in their own voice |
+| `createdAt` | `Timestamp` | Yes | When the deal was assessed |
+| `_schemaVersion` | `1` | Yes | Schema version for lazy migration |
+
+**Contracts closed** is not stored. It is the number of clients with a completed `6_{clientKey}` entry in `portfolioProgress.stageResults` (only a `signed` outcome completes Level 6).
+
+**Queries:** the player's contracts are read with a single equality filter on `uid`, so no composite index is needed.
+
+**Deletion:** Hard-delete is disabled.
 <!-- Add new collection schemas below using the /firebase-collection skill -->
