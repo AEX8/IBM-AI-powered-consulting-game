@@ -10,6 +10,13 @@ const COMPLETION_KEY = 'ibm-level-three-completed'
 const CELEBRATION_KEY = 'ibm-level-three-celebration-pending'
 const steps = ['Client File', 'Meeting Objectives', 'Prepare Questions', 'Preparation Feedback']
 
+// Demo build: lets the client switcher below persist a selection in the same
+// shape Level 2 writes, so Level 4 picks up whichever client was chosen here.
+const CLIENT_META: Record<string, { texture: string; portrait: string }> = {
+  'test-level-1': { texture: 'good-client', portrait: 'character-01.png' },
+  'test-level-2': { texture: 'bad-client', portrait: 'character-02.png' },
+}
+
 function readClient(): string {
   try {
     const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) ?? 'null')
@@ -33,7 +40,7 @@ function readDraft(personaId: string, kind: 'objectives' | 'questions'): string[
 export function PreparationPanel({ onClose, gradePreparation }: {
   onClose: () => void; gradePreparation?: GradePreparation
 }) {
-  const [personaId] = useState(readClient)
+  const [personaId, setPersonaId] = useState(readClient)
   const client = preparationContent[personaId]
   const [step, setStep] = useState(0)
   const [objectives, setObjectives] = useState<string[]>(() => readDraft(personaId, 'objectives'))
@@ -42,6 +49,33 @@ export function PreparationPanel({ onClose, gradePreparation }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(false)
+
+  // Demo build: lets the player pick or switch clients directly on this form,
+  // instead of only inheriting whatever was chosen back in Level 2.
+  function selectClient(id: string) {
+    if (id === personaId) return
+
+    setPersonaId(id)
+    setStep(0)
+    setObjectives(readDraft(id, 'objectives'))
+    setQuestions(readDraft(id, 'questions'))
+    setResult(null)
+    setError('')
+
+    const meta = CLIENT_META[id]
+    const name = preparationContent[id]?.name
+
+    if (meta && name) {
+      try {
+        localStorage.setItem(
+          SELECTION_KEY,
+          JSON.stringify({ name, personaId: id, texture: meta.texture, portrait: meta.portrait })
+        )
+      } catch {
+        // The switch still works for this session even if it can't be persisted.
+      }
+    }
+  }
 
   useEffect(() => {
     if (!personaId) return
@@ -103,12 +137,19 @@ export function PreparationPanel({ onClose, gradePreparation }: {
       <button className={styles.close} onClick={onClose} aria-label="Return to office">×</button>
       <div className={styles.screen}>
         <header><small>LEVEL 3 · MEETING PREPARATION</small><h1>{finished ? 'Ready for your meeting!' : steps[step]}</h1>
-          {client && <p>{client.name} · {client.industry}</p>}</header>
+          {client && <p>{client.name} · {client.industry}</p>}
+          {!finished && <div className={styles.clientSwitcher} role="group" aria-label="Change client">
+            {Object.entries(preparationContent).map(([id, info]) => (
+              <button key={id} type="button" aria-pressed={id === personaId} disabled={busy}
+                onClick={() => selectClient(id)}>{info.name}</button>
+            ))}
+          </div>}
+        </header>
         <nav aria-label="Preparation steps">{steps.map((label, index) => <button key={label}
           disabled={busy || finished || index > step || index === 3} onClick={() => setStep(index)}
           aria-current={index === step ? 'step' : undefined}>{index + 1}<span>{label}</span></button>)}</nav>
         <div className={styles.content}>
-          {!client ? <><h2>Select a client in Outreach first</h2><p>Your meeting preparation follows the client you researched in Level 2.</p><a href="/levels/outreach">Return to Outreach →</a></>
+          {!client ? <><h2>Select a client</h2><p>Choose who you are preparing to meet, above — this also sets who you will meet in the Level 4 client meeting.</p></>
           : finished ? <motion.div className={styles.finish} initial={{ scale: .8 }} animate={{ scale: 1 }}>
             <span aria-hidden="true">★</span><h2>Level 4 unlocked</h2><p>Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.</p>
             <a className={styles.primary} href="/dashboard?completed=level-3">Return home →</a>
