@@ -1,3 +1,4 @@
+import Phaser from 'phaser'
 import type { LevelOneEffects } from '../effects/LevelOneEffects'
 
 // How close counts as "arrived", in pixels.
