@@ -97,9 +97,15 @@ export class ClickToMoveController {
       return
     }
 
+    // Measured from the physics body's centre, not the sprite's origin — the
+    // body is a small box offset toward the character's feet (set up that way
+    // so she can visually overlap furniture without walking through it), so
+    // comparing against the sprite's own x/y would report a distance that
+    // never matches where she's actually, physically able to stand.
+    const body = this.player.body as Phaser.Physics.Arcade.Body
     const distance = Phaser.Math.Distance.Between(
-      this.player.x,
-      this.player.y,
+      body.center.x,
+      body.center.y,
       this.target.x,
       this.target.y
     )
@@ -116,9 +122,8 @@ export class ClickToMoveController {
       return
     }
 
-    const body = this.player.body as Phaser.Physics.Arcade.Body
     this.scene.physics.velocityFromRotation(
-      Phaser.Math.Angle.Between(this.player.x, this.player.y, this.target.x, this.target.y),
+      Phaser.Math.Angle.Between(body.center.x, body.center.y, this.target.x, this.target.y),
       this.speed,
       body.velocity
     )
