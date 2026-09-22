@@ -138,7 +138,12 @@ export class LevelOneScene extends Phaser.Scene {
           {
             clientMessage:
               "Honestly, it's supply-chain delays. Our inventory, orders and logistics all live in separate systems, so problems usually aren't found until a delivery is already affected.",
-            playerReply: "That sounds disruptive. What have you tried so far, and what would a good outcome look like for you?",
+            playerReply: "That sounds disruptive. What would a good outcome look like for you?",
+          },
+          {
+            clientMessage:
+              "More visibility across the supply chain, without ripping out everything we already have. We'd want to catch problems earlier while we keep growing. Thanks, this has been useful.",
+            playerReply: 'Bye for now.',
           },
         ],
       },
@@ -156,7 +161,12 @@ export class LevelOneScene extends Phaser.Scene {
           {
             clientMessage:
               "Our customer data is scattered across stores, online, mobile and loyalty systems. Different teams end up looking at different versions of the same customer, and our dashboards don't agree with each other.",
-            playerReply: "That must make decisions difficult. What would you actually want out of a solution?",
+            playerReply: "That must make decisions difficult. What would you want out of a solution?",
+          },
+          {
+            clientMessage:
+              "One reliable view of the customer my business teams can use without leaning on my tech team constantly. I'll be honest, I'm sceptical of big consulting programmes, so it would need to show value fast.",
+            playerReply: 'Bye for now.',
           },
         ],
       },
