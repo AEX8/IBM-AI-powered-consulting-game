@@ -15,13 +15,44 @@ import { PROPOSAL_STAGE_ID, acceptedSkillDeltas, performanceForRound } from '../
 import type { ProposalPersona } from '../personas'
 import type { ProposalFormValues, ProposalWorkspaceView } from '../types'
 
-function createBlankProposal(): ProposalFormValues {
-  return {
-    solutionScope: '',
-    investment: '',
-    nextSteps: '',
-    timeline: [{ label: '' }, { label: '' }, { label: '' }],
-  }
+// Demo build: a ready-to-send proposal per client, so the player only has to
+// review and press send. Fields stay editable in case anyone wants to tweak them.
+const PROPOSAL_DRAFTS: Partial<Record<ProposalPersona['key'], ProposalFormValues>> = {
+  sarah: {
+    solutionScope:
+      "A phased visibility layer that connects ACMD's existing inventory, order and logistics systems into a single live dashboard, without replacing any of the systems you already run. This surfaces delivery risks early, cuts the manual cross-checking your team currently does, and gives you one place to see the whole supply chain end to end.",
+    investment: '$25,000 AUD, fixed price for phase one',
+    nextSteps:
+      "On acceptance we start with a two-week discovery to map your current systems, followed by phase one delivery. We'll check in weekly and review results with you at the six-week mark before any further investment.",
+    timeline: [
+      { label: 'Weeks 1-2: Map existing systems and connect data sources' },
+      { label: 'Weeks 3-5: Build the live visibility dashboard and test with your team' },
+      { label: 'Week 6: Review results with you and agree next steps' },
+    ],
+  },
+  david: {
+    solutionScope:
+      "A focused engagement that unifies Meridian's store, online, mobile and loyalty customer data into one reliable view your business teams can use directly, working alongside your internal technology team rather than replacing their work. This removes the manual reconciliation between systems and gives you a consistent customer picture within weeks, not years.",
+    investment: '$30,000 AUD, fixed price for the first phase',
+    nextSteps:
+      "We start with a two-week data audit alongside your technology team, then deliver the first working version of the unified view. We'll demonstrate measurable value within six weeks before discussing any further phases.",
+    timeline: [
+      { label: 'Weeks 1-2: Audit data sources with your technology team' },
+      { label: 'Weeks 3-5: Build and test the unified customer view' },
+      { label: 'Week 6: Demonstrate results and agree on next steps' },
+    ],
+  },
+}
+
+function createPrefilledProposal(personaKey: ProposalPersona['key']): ProposalFormValues {
+  return (
+    PROPOSAL_DRAFTS[personaKey] ?? {
+      solutionScope: '',
+      investment: '',
+      nextSteps: '',
+      timeline: [{ label: '' }, { label: '' }, { label: '' }],
+    }
+  )
 }
 
 type ProposalWorkspaceProps = {
@@ -30,7 +61,9 @@ type ProposalWorkspaceProps = {
 
 export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
   const [view, setView] = useState<ProposalWorkspaceView>('editing')
-  const [proposal, setProposal] = useState<ProposalFormValues>(createBlankProposal)
+  const [proposal, setProposal] = useState<ProposalFormValues>(() =>
+    createPrefilledProposal(persona.key)
+  )
   const [round, setRound] = useState(1)
   const [objection, setObjection] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -196,7 +229,7 @@ export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
         <ProposalOutcomeScreen
           outcome="rejected"
           onRetry={() => {
-            setProposal(createBlankProposal())
+            setProposal(createPrefilledProposal(persona.key))
             setRound(1)
             setObjection('')
             setSuggestions([])
