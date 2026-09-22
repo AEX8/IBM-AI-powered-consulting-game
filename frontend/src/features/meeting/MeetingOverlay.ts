@@ -1,5 +1,4 @@
 import {
-  MAX_FREE_MESSAGE_LENGTH,
   MEETING_OPENING_CHOICES,
   SCORE_KEYS,
   SCORE_LABELS,
@@ -14,6 +13,19 @@ import type { MeetingPrepContext } from './prompts'
 
 const REPLY_TIMEOUT_MS = 30_000
 const SCORE_TIMEOUT_MS = 60_000
+
+// Demo build: after the opening choice, every later message is pre-written too —
+// the player only has to press Send. Generic enough to make sense after almost
+// any client reply, since the client's own responses stay real (AI-generated).
+const SCRIPTED_FOLLOWUP_REPLIES = [
+  'That’s really helpful context. How is this affecting your team or your customers day to day?',
+  'Thanks for sharing that. What would a successful outcome look like for your organisation?',
+  'That makes sense. Who else would need to be involved in a decision like this?',
+  'Understood. What’s driving the timing on this, and why does it matter now?',
+  'That’s useful to know. What have you already tried, and what didn’t quite work?',
+  'Good to know. Based on what you’ve shared, I think it’s worth putting together next steps.',
+  'Thank you for your time today — this has been a really useful conversation.',
+] as const
 
 export type MeetingOverlayClient = {
   name: string
@@ -135,6 +147,7 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
   let scoreError = ''
   let result: MeetingResult | null = null
   let destroyed = false
+  let followUpIndex = 0
 
   function portraitFor(role: MeetingMessage['role']): string {
     return `/assets/characters/npcs/${role === 'client' ? client.portrait : 'character-03.png'}`
@@ -183,8 +196,13 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
     }
 
     const showEnd = canEndMeeting(countPlayerMessages(messages))
+    // SCRIPTED_FOLLOWUP_REPLIES is a fixed, non-empty literal, so the last-item
+    // fallback always exists — the assertion just satisfies noUncheckedIndexedAccess.
+    const nextFollowUp =
+      SCRIPTED_FOLLOWUP_REPLIES[followUpIndex] ??
+      SCRIPTED_FOLLOWUP_REPLIES[SCRIPTED_FOLLOWUP_REPLIES.length - 1]!
 
-    return `<div class="l4-compose"><textarea maxlength="${MAX_FREE_MESSAGE_LENGTH}" data-reply placeholder="Type your response…" ${busy ? 'disabled' : ''}></textarea><span data-count>${MAX_FREE_MESSAGE_LENGTH} characters remaining</span><button data-send aria-label="Send response" ${busy ? 'disabled' : ''}>➜</button>${showEnd ? `<button class="l4-end" data-end ${busy ? 'disabled' : ''}>End meeting</button>` : ''}</div>`
+    return `<div class="l4-compose"><textarea data-reply readonly aria-label="Your prepared reply">${escapeHtml(nextFollowUp)}</textarea><button data-send aria-label="Send response" ${busy ? 'disabled' : ''}>➜</button>${showEnd ? `<button class="l4-end" data-end ${busy ? 'disabled' : ''}>End meeting</button>` : ''}</div>`
   }
 
   function feedbackHtml(meeting: MeetingResult): string {
@@ -252,18 +270,12 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
     })
 
     const reply = root.querySelector<HTMLTextAreaElement>('[data-reply]')
-    const count = root.querySelector<HTMLElement>('[data-count]')
 
-    // Keys typed into the reply box must not reach Phaser's movement controls.
+    // Stray keystrokes (e.g. focus lingering on the readonly field) must not
+    // reach Phaser's own key listeners.
     for (const eventName of ['keydown', 'keyup'] as const) {
       reply?.addEventListener(eventName, (event) => event.stopPropagation())
     }
-
-    reply?.addEventListener('input', () => {
-      if (count) {
-        count.textContent = `${MAX_FREE_MESSAGE_LENGTH - reply.value.length} characters remaining`
-      }
-    })
 
     reply?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -316,6 +328,11 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
       }
 
       messages = [...messages, { role: 'client', content: source.reply }]
+      // Advance to the next scripted reply only once this one has actually been
+      // sent successfully — a failed send must resend the same prepared text.
+      if (mode === 'free') {
+        followUpIndex = Math.min(followUpIndex + 1, SCRIPTED_FOLLOWUP_REPLIES.length - 1)
+      }
       mode =
         source.endMeeting === true || meetingIsOver(countPlayerMessages(messages))
           ? 'ended'
@@ -384,6 +401,7 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
     pendingMessage = ''
     scoreError = ''
     result = null
+    followUpIndex = 0
     render()
   }
 
@@ -404,7 +422,7 @@ const STYLES = `
     .l4-transcript{min-height:0;flex:1;overflow-y:auto;padding:22px}.l4-message{display:flex;gap:12px;align-items:flex-start;margin:0 0 16px}.l4-message.player{flex-direction:row-reverse}.l4-message img{width:54px;height:54px;border:3px solid #2c2c2a;border-radius:50%;background:#fff;object-fit:contain}.l4-message p{max-width:380px;margin:0;border:2px solid #9ba4aa;border-radius:14px;background:#fff;padding:13px 15px;font-size:16px;line-height:1.38}.l4-message.player p{border-color:#6f925f;background:#edf5e9}
     .l4-typing{display:flex;gap:6px;align-items:center;min-height:24px}.l4-typing i{width:9px;height:9px;border-radius:50%;background:#9ba4aa;animation:l4-dot 1s infinite ease-in-out}.l4-typing i:nth-child(2){animation-delay:.15s}.l4-typing i:nth-child(3){animation-delay:.3s}
     .l4-controls{flex:0 0 auto;padding:14px 18px 18px}.l4-choices{display:grid;gap:8px;border:3px solid #8f5b28;border-radius:15px;background:#fff8e7;padding:10px}.l4-choices button{border:3px solid #2c2c2a;border-radius:11px;background:#5f914f;padding:12px 15px;color:#fff;text-align:left;font-size:14px;font-weight:700;cursor:pointer;transition:.16s}.l4-choices button:not(:disabled):hover{transform:translateX(5px);filter:brightness(1.08)}.l4-choices button:disabled{opacity:.5;cursor:not-allowed}
-    .l4-compose{position:relative;display:grid;grid-template-columns:1fr 62px;gap:9px}.l4-compose textarea{height:82px;border:3px solid #c98a3e;border-radius:13px;padding:12px 14px;font:16px Arial;resize:none}.l4-compose textarea:disabled{background:#eee}.l4-compose [data-count]{position:absolute;left:6px;top:87px;color:#777;font-size:12px}.l4-compose [data-send]{border:4px solid #2c2c2a;border-radius:13px;background:#5f914f;color:#fff;font-size:28px;cursor:pointer}.l4-compose [data-send]:disabled{opacity:.5;cursor:not-allowed}.l4-end{grid-column:1/-1;margin-top:15px;border:3px solid #2c2c2a;border-radius:10px;background:#1f4f78;padding:10px;color:#fff;font-weight:700;cursor:pointer}.l4-end:disabled{opacity:.5;cursor:not-allowed}
+    .l4-compose{position:relative;display:grid;grid-template-columns:1fr 62px;gap:9px}.l4-compose textarea{height:82px;border:3px solid #c98a3e;border-radius:13px;padding:12px 14px;font:16px Arial;resize:none}.l4-compose textarea:disabled{background:#eee}.l4-compose [data-send]{border:4px solid #2c2c2a;border-radius:13px;background:#5f914f;color:#fff;font-size:28px;cursor:pointer}.l4-compose [data-send]:disabled{opacity:.5;cursor:not-allowed}.l4-end{grid-column:1/-1;margin-top:15px;border:3px solid #2c2c2a;border-radius:10px;background:#1f4f78;padding:10px;color:#fff;font-weight:700;cursor:pointer}.l4-end:disabled{opacity:.5;cursor:not-allowed}
     .l4-notice,.l4-error{display:grid;gap:12px;justify-items:start;border:3px solid #8f5b28;border-radius:15px;background:#fff8e7;padding:16px}.l4-error{border-color:#b5533c;background:#fdeeea}.l4-notice p,.l4-error p{margin:0;font-size:15px;line-height:1.4}.l4-notice button,.l4-error button{border:3px solid #2c2c2a;border-radius:10px;background:#5f914f;padding:10px 18px;color:#fff;font-weight:800;cursor:pointer}
     .l4-spinner{width:26px;height:26px;border:4px solid #d5d1c8;border-top-color:#5f914f;border-radius:50%;animation:l4-spin .8s linear infinite}
     .l4-feedback{position:absolute;inset:0;display:flex;flex-direction:column;background:#f4f7f9}.l4-feedback-head{flex:0 0 90px;display:grid;place-items:center;background:#b98900;border-bottom:5px solid #2c2c2a;color:#fff;font-size:27px;font-weight:800}.l4-feedback-body{flex:1;min-height:0;overflow-y:auto;padding:22px 30px 26px}
