@@ -9,6 +9,7 @@ import {
   ClientDialogueController,
   type ClientDefinition,
 } from '../dialogue/ClientDialogueController'
+import { ClickToMoveController } from '../movement/ClickToMoveController'
 
 const WORLD_WIDTH = 1440
 const WORLD_HEIGHT = 720
@@ -19,6 +20,7 @@ const CHARACTER_WIDTH = 165
 const CHARACTER_HEIGHT = 238
 const TABLE_WIDTH = 175
 const TABLE_HEIGHT = 154
+const CLIENT_STAND_OFFSET = 120 // demo build: how far from a client the player stops when clicked
 const LEVEL_ONE_COMPLETION_KEY = 'ibm-level-one-completed'
 const LEVEL_ONE_MET_CLIENTS_KEY = 'ibm-level-one-met-clients'
 
@@ -42,9 +44,7 @@ export class LevelOneScene extends Phaser.Scene {
 
   private clientDialogue?: ClientDialogueController
 
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
-
-  private wasd!: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
+  private clickToMove!: ClickToMoveController
 
   private controlsEnabled = false
   private interfaceOpen = false
@@ -118,7 +118,7 @@ export class LevelOneScene extends Phaser.Scene {
      */
     const worldObjects = [...this.children.list]
 
-    this.configureKeyboard()
+    this.configureClickToMove()
     this.createInterface()
     this.createInterfaceCamera(worldObjects)
 
@@ -127,15 +127,38 @@ export class LevelOneScene extends Phaser.Scene {
         name: 'Sarah Chen',
         texture: 'good-client',
         personaId: 'test-level-1',
-        responseMode: 'llm',
+        responseMode: 'scripted',
         sprite: this.goodClient,
+        scriptedTurns: [
+          {
+            clientMessage:
+              "Hi! I've heard IBM might be able to help with challenges like ours — what would you like to know?",
+            playerReply: "Thanks for taking the time. What's the biggest challenge your team is facing right now?",
+          },
+          {
+            clientMessage:
+              "Honestly, it's supply-chain delays. Our inventory, orders and logistics all live in separate systems, so problems usually aren't found until a delivery is already affected.",
+            playerReply: "That sounds disruptive. What have you tried so far, and what would a good outcome look like for you?",
+          },
+        ],
       },
       {
         name: 'David Palte',
         texture: 'bad-client',
         personaId: 'test-level-2',
-        responseMode: 'llm',
+        responseMode: 'scripted',
         sprite: this.badClient,
+        scriptedTurns: [
+          {
+            clientMessage: "Hi. I've got a few minutes — what did you want to ask?",
+            playerReply: "Thanks for your time. What's the main problem you're running into at the moment?",
+          },
+          {
+            clientMessage:
+              "Our customer data is scattered across stores, online, mobile and loyalty systems. Different teams end up looking at different versions of the same customer, and our dashboards don't agree with each other.",
+            playerReply: "That must make decisions difficult. What would you actually want out of a solution?",
+          },
+        ],
       },
     ]
 
@@ -144,7 +167,6 @@ export class LevelOneScene extends Phaser.Scene {
     this.clientDialogue = new ClientDialogueController({
       scene: this,
       player: this.player,
-      clients,
       effects: this.effects,
       mainCamera: this.cameras.main,
       interfaceCamera: this.interfaceCamera,
@@ -166,6 +188,19 @@ export class LevelOneScene extends Phaser.Scene {
       },
     })
 
+    // Demo build: click a client to walk up to them and open the conversation
+    // automatically on arrival — no proximity prompt, no E key.
+    for (const client of clients) {
+      client.sprite.on('pointerdown', () => {
+        if (this.interfaceOpen || !this.controlsEnabled) return
+
+        this.clientOverview?.setVisible(false)
+        this.clickToMove.moveToObject(client.sprite, CLIENT_STAND_OFFSET, () => {
+          this.clientDialogue?.openDialogueFor(client)
+        })
+      })
+    }
+
     this.startArrivalSequence()
   }
 
@@ -174,35 +209,42 @@ export class LevelOneScene extends Phaser.Scene {
     if (this.interfaceOpen || !this.controlsEnabled) this.clientOverview?.setVisible(false)
 
     if (!this.controlsEnabled || this.interfaceOpen) {
-      this.player.setVelocity(0)
+      this.clickToMove.stop()
       this.player.setAngle(0)
       this.effects.updateWalking(this.player, false, this.time.now)
-      this.clientDialogue?.hidePrompt()
       return
     }
 
     this.updateMovement()
     this.updateCharacterDepths()
-    this.clientDialogue?.update()
     this.checkForLevelExit()
   }
 
-  private configureKeyboard(): void {
-    const keyboard = this.input.keyboard
-
-    if (!keyboard) {
-      throw new Error('Keyboard controls are unavailable.')
-    }
-
+  private configureClickToMove(): void {
     this.input.setTopOnly(true)
-    this.cursors = keyboard.createCursorKeys()
 
-    this.wasd = keyboard.addKeys({
-      up: 'W',
-      down: 'S',
-      left: 'A',
-      right: 'D',
-    }) as typeof this.wasd
+    this.clickToMove = new ClickToMoveController({
+      scene: this,
+      player: this.player,
+      effects: this.effects,
+      speed: PLAYER_SPEED,
+      worldWidth: WORLD_WIDTH,
+      worldHeight: WORLD_HEIGHT,
+    })
+
+    // Demo build: tap/click open ground to walk there. Objects with their own
+    // pointerdown handler (a client, a button) are skipped here — this only
+    // fires when the click didn't land on anything interactive.
+    this.input.on(
+      'pointerdown',
+      (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.interfaceOpen || !this.controlsEnabled) return
+        if (currentlyOver.length > 0) return
+
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        this.clickToMove.moveTo(worldPoint.x, worldPoint.y)
+      }
+    )
   }
 
   private createInterfaceCamera(worldObjects: Phaser.GameObjects.GameObject[]): void {
@@ -583,7 +625,7 @@ export class LevelOneScene extends Phaser.Scene {
             },
             {
               managerMessage:
-                "Use your notebook to keep track of anything useful. Move with the arrow keys or WASD and interact with people nearby. Once you've spoken to everyone, come back to me and we'll decide which opportunity is worth pursuing.",
+                "Use your notebook to keep track of anything useful. Click anywhere to walk there, or click on someone to go speak with them. Once you've spoken to everyone, come back to me and we'll decide which opportunity is worth pursuing.",
               playerReply: "I'll speak with everyone and come back when I'm done.",
             },
           ],
@@ -1403,33 +1445,7 @@ export class LevelOneScene extends Phaser.Scene {
   }
 
   private updateMovement(): void {
-    let velocityX = 0
-    let velocityY = 0
-
-    if (this.cursors.left.isDown || this.wasd.left.isDown) {
-      velocityX = -PLAYER_SPEED
-    }
-
-    if (this.cursors.right.isDown || this.wasd.right.isDown) {
-      velocityX = PLAYER_SPEED
-    }
-
-    if (this.cursors.up.isDown || this.wasd.up.isDown) {
-      velocityY = -PLAYER_SPEED
-    }
-
-    if (this.cursors.down.isDown || this.wasd.down.isDown) {
-      velocityY = PLAYER_SPEED
-    }
-
-    if (velocityX !== 0 && velocityY !== 0) {
-      velocityX *= 0.7071
-      velocityY *= 0.7071
-    }
-
-    this.player.setVelocity(velocityX, velocityY)
-
-    this.effects.updateWalking(this.player, velocityX !== 0 || velocityY !== 0, this.time.now)
+    this.clickToMove.update(this.time.now)
   }
 
   private updateCharacterDepths(): void {
