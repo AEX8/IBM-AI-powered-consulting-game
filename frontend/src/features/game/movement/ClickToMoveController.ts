@@ -34,6 +34,7 @@ export class ClickToMoveController {
 
   private target: Phaser.Math.Vector2 | null = null
   private onArrive: (() => void) | null = null
+  private arrivalDistance = ARRIVAL_DISTANCE
   private travelStartedAt = 0
 
   constructor(options: ClickToMoveOptions) {
@@ -47,25 +48,32 @@ export class ClickToMoveController {
 
   /** Walks the player to a point in the world (a tap on open ground). */
   moveTo(x: number, y: number): void {
-    this.setTarget(x, y, null)
+    this.setTarget(x, y, null, ARRIVAL_DISTANCE)
   }
 
   /**
    * Walks the player to a point near a target object — offset by
    * `standOffset` so they stop beside it rather than on top of it — then
    * calls `onArrive` once, the moment they get there.
+   *
+   * `arrivalDistance` widens how close counts as "arrived" (default 6px).
+   * Useful when the target sits close to furniture: a player approaching from
+   * an angle that clips a collider's edge will still be near enough to count,
+   * instead of silently timing out just short of the exact point.
    */
   moveToObject(
     target: { x: number; y: number },
     standOffset: number,
-    onArrive: () => void
+    onArrive: () => void,
+    arrivalDistance: number = ARRIVAL_DISTANCE
   ): void {
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y)
 
     this.setTarget(
       target.x - Math.cos(angle) * standOffset,
       target.y - Math.sin(angle) * standOffset,
-      onArrive
+      onArrive,
+      arrivalDistance
     )
   }
 
@@ -96,7 +104,7 @@ export class ClickToMoveController {
       this.target.y
     )
 
-    if (distance <= ARRIVAL_DISTANCE) {
+    if (distance <= this.arrivalDistance) {
       const callback = this.onArrive
       this.target = null
       this.onArrive = null
@@ -118,12 +126,18 @@ export class ClickToMoveController {
     this.effects.updateWalking(this.player, true, time)
   }
 
-  private setTarget(x: number, y: number, onArrive: (() => void) | null): void {
+  private setTarget(
+    x: number,
+    y: number,
+    onArrive: (() => void) | null,
+    arrivalDistance: number
+  ): void {
     this.target = new Phaser.Math.Vector2(
       Phaser.Math.Clamp(x, 0, this.worldWidth),
       Phaser.Math.Clamp(y, 0, this.worldHeight)
     )
     this.onArrive = onArrive
+    this.arrivalDistance = arrivalDistance
     this.travelStartedAt = this.scene.time.now
   }
 }
