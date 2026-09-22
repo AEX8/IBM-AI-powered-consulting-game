@@ -9,6 +9,7 @@ import {
   createOutreachLaptopFlow,
   type OutreachEmailSubmission,
 } from '../dialogue/OutreachLaptopFlow'
+import { ClickToMoveController } from '../movement/ClickToMoveController'
 
 const WORLD_WIDTH = 1440
 const WORLD_HEIGHT = 720
@@ -20,6 +21,14 @@ const LEVEL_ONE_MET_CLIENTS_KEY = 'ibm-level-one-met-clients'
 const PASSING_OUTREACH_SCORE = 5
 const LEVEL_TWO_COMPLETION_KEY = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
+// Demo build: clicking the desk or chair always walks the player toward this
+// spot on the open floor in front of them (below both furniture colliders, so
+// it's reachable from any direction), then beginDeskSequence() takes over with
+// its own short seat-approach animation from wherever the player ends up.
+const DESK_STAND_POINT = { x: 290, y: 660 }
+// Generous on purpose: a player approaching from certain angles gets stopped
+// by the desk or chair's collider a little short of the exact point above.
+const DESK_ARRIVAL_DISTANCE = 60
 
 type MetClient = {
   name: string
@@ -43,10 +52,7 @@ export class LevelTwoScene extends Phaser.Scene {
   private plant!: Phaser.GameObjects.Image
   private effects!: LevelOneEffects
   private interfaceCamera!: Phaser.Cameras.Scene2D.Camera
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
-  private wasd!: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
-  private interactionKey!: Phaser.Input.Keyboard.Key
-  private interactionPrompt!: Phaser.GameObjects.Container
+  private clickToMove!: ClickToMoveController
   private obstacleZones: Phaser.GameObjects.Zone[] = []
   private laptopOverlay?: Phaser.GameObjects.Container
   private laptopFlow?: Phaser.GameObjects.DOMElement
@@ -82,7 +88,7 @@ export class LevelTwoScene extends Phaser.Scene {
     this.createOffice()
     this.createPlayer()
     this.createCollisions()
-    this.configureKeyboard()
+    this.configureClickToMove()
 
     this.effects.addCharacterShadow(this.player, 86)
     this.effects.addPlantSway(this.plant)
@@ -93,7 +99,6 @@ export class LevelTwoScene extends Phaser.Scene {
     // renders interface objects so menus stay fixed while the room camera zooms.
     const worldObjects = [...this.children.list]
     this.createNavigationButtons()
-    this.interactionPrompt = this.createInteractionPrompt()
     this.createInterfaceCamera(worldObjects)
 
     this.cameras.main.fadeIn(450, 44, 44, 42)
@@ -103,35 +108,45 @@ export class LevelTwoScene extends Phaser.Scene {
     if (!this.player) return
 
     if (this.laptopOverlay || this.menuPanel || this.notebookPanel || this.deskSequenceActive) {
-      this.player.setVelocity(0)
-      this.interactionPrompt.setVisible(false)
+      this.clickToMove.stop()
       this.effects.updateWalking(this.player, false, this.time.now)
       return
     }
 
     this.updateMovement()
-    this.updateDeskInteraction()
   }
 
-  private configureKeyboard(): void {
-    const keyboard = this.input.keyboard
-
-    if (!keyboard) {
-      throw new Error('Keyboard controls are unavailable.')
-    }
-
-    this.cursors = keyboard.createCursorKeys()
-    this.wasd = keyboard.addKeys({
-      up: 'W',
-      down: 'S',
-      left: 'A',
-      right: 'D',
-    }) as typeof this.wasd
-    this.interactionKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
-
-    keyboard.on('keydown-ESC', () => {
+  private configureClickToMove(): void {
+    this.input.keyboard?.on('keydown-ESC', () => {
       if (this.laptopOverlay) this.closeLaptopOverlay()
     })
+
+    this.input.setTopOnly(true)
+
+    this.clickToMove = new ClickToMoveController({
+      scene: this,
+      player: this.player,
+      effects: this.effects,
+      speed: PLAYER_SPEED,
+      worldWidth: WORLD_WIDTH,
+      worldHeight: WORLD_HEIGHT,
+    })
+
+    // Demo build: tap/click open ground to walk there. Objects with their own
+    // pointerdown handler (the desk, a button) are skipped here — this only
+    // fires when the click didn't land on anything interactive.
+    this.input.on(
+      'pointerdown',
+      (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.laptopOverlay || this.menuPanel || this.notebookPanel || this.deskSequenceActive) {
+          return
+        }
+        if (currentlyOver.length > 0) return
+
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        this.clickToMove.moveTo(worldPoint.x, worldPoint.y)
+      }
+    )
   }
 
   private createOffice(): void {
@@ -251,7 +266,23 @@ export class LevelTwoScene extends Phaser.Scene {
     // The desk is kept compact and moved nearer to the chair so the workstation reads
     // as one usable setup rather than an oversized table floating behind the player.
     this.add.ellipse(290, 490, 292, 24, 0x2c2c2a, 0.14).setDepth(370)
-    this.add.image(290, 400, 'level-two-desk').setDisplaySize(325, 217).setDepth(382)
+
+    const desk = this.add
+      .image(290, 400, 'level-two-desk')
+      .setDisplaySize(325, 217)
+      .setDepth(382)
+      .setInteractive({ useHandCursor: true })
+
+    // Demo build: click the desk to walk over and sit down automatically.
+    desk.on('pointerdown', () => {
+      if (this.deskSequenceActive || this.laptopOverlay) return
+      this.clickToMove.moveToObject(
+        DESK_STAND_POINT,
+        0,
+        () => this.beginDeskSequence(),
+        DESK_ARRIVAL_DISTANCE
+      )
+    })
 
     // The pulse sits behind the transparent desk sprite and reads as laptop-screen light.
     const laptopGlow = this.add.rectangle(290, 352, 94, 52, 0xbde9ff, 0.16).setDepth(381)
@@ -312,7 +343,21 @@ export class LevelTwoScene extends Phaser.Scene {
   private createChair(): void {
     // The chair is separate from the desk so it can sit in front exactly as shown in the wireframe.
     this.add.ellipse(290, 636, 185, 28, 0x2c2c2a, 0.15).setDepth(520)
-    this.chair = this.add.image(290, 555, 'level-two-chair').setDisplaySize(220, 264).setDepth(548)
+    this.chair = this.add
+      .image(290, 555, 'level-two-chair')
+      .setDisplaySize(220, 264)
+      .setDepth(548)
+      .setInteractive({ useHandCursor: true })
+
+    this.chair.on('pointerdown', () => {
+      if (this.deskSequenceActive || this.laptopOverlay) return
+      this.clickToMove.moveToObject(
+        DESK_STAND_POINT,
+        0,
+        () => this.beginDeskSequence(),
+        DESK_ARRIVAL_DISTANCE
+      )
+    })
   }
 
   private createCouch(): void {
@@ -395,50 +440,16 @@ export class LevelTwoScene extends Phaser.Scene {
     }
   }
 
-  private createInteractionPrompt(): Phaser.GameObjects.Container {
-    const prompt = this.add.container(290, 650).setDepth(4500).setVisible(false)
-    const background = this.add.rectangle(0, 0, 238, 54, 0xf4f7f9, 0.96).setStrokeStyle(4, 0x2c2c2a)
-    const label = this.add
-      .text(0, 0, 'Press E to use laptop', {
-        color: '#2c2c2a',
-        fontFamily: 'Arial',
-        fontSize: '19px',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-
-    prompt.add([background, label])
-
-    this.tweens.add({
-      targets: prompt,
-      y: 640,
-      duration: 650,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    })
-
-    return prompt
-  }
-
   private updateMovement(): void {
-    let velocityX = 0
-    let velocityY = 0
+    this.clickToMove.update(this.time.now)
 
-    if (this.cursors.left.isDown || this.wasd.left.isDown) velocityX -= 1
-    if (this.cursors.right.isDown || this.wasd.right.isDown) velocityX += 1
-    if (this.cursors.up.isDown || this.wasd.up.isDown) velocityY -= 1
-    if (this.cursors.down.isDown || this.wasd.down.isDown) velocityY += 1
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    const moving = body.velocity.lengthSq() > 0
 
-    const direction = new Phaser.Math.Vector2(velocityX, velocityY)
-    if (direction.lengthSq() > 0) direction.normalize().scale(PLAYER_SPEED)
-
-    this.player.setVelocity(direction.x, direction.y)
-    this.player.setFlipX(direction.x < 0)
+    this.player.setFlipX(body.velocity.x < 0)
     this.player.setDepth(this.player.y)
-    this.effects.updateWalking(this.player, direction.lengthSq() > 0, this.time.now)
 
-    if (direction.lengthSq() > 0 && this.time.now - this.lastFootstepAt >= 180) {
+    if (moving && this.time.now - this.lastFootstepAt >= 180) {
       this.createFootstepParticle()
       this.lastFootstepAt = this.time.now
     }
@@ -490,25 +501,11 @@ export class LevelTwoScene extends Phaser.Scene {
     }
   }
 
-  private updateDeskInteraction(): void {
-    // This is intentionally a narrow rectangle directly below the chair. A circular
-    // radius allowed E to activate from the desk sides and did not feel intentional.
-    const canUseLaptop =
-      this.player.x >= 190 && this.player.x <= 390 && this.player.y >= 520 && this.player.y <= 675
-
-    this.interactionPrompt.setVisible(canUseLaptop)
-
-    if (canUseLaptop && Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
-      this.beginDeskSequence()
-    }
-  }
-
   private beginDeskSequence(): void {
     if (this.deskSequenceActive) return
 
     this.deskSequenceActive = true
-    this.player.setVelocity(0)
-    this.interactionPrompt.setVisible(false)
+    this.clickToMove.stop()
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body
     playerBody.enable = false
