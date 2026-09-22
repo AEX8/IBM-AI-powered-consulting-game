@@ -2,12 +2,21 @@ import Phaser from 'phaser'
 import { openMeetingOverlay, type MeetingOverlayHandle } from '@/features/meeting/MeetingOverlay'
 import type { MeetingPrepContext } from '@/features/meeting/prompts'
 import { SELECTED_OUTREACH_CLIENT_KEY } from '../dialogue/OutreachLaptopFlow'
+import { LevelOneEffects } from '../effects/LevelOneEffects'
+import { ClickToMoveController } from '../movement/ClickToMoveController'
 
 const WORLD_WIDTH = 1440
 const WORLD_HEIGHT = 720
 const WALKABLE_TOP = 365
 const PLAYER_SPEED = 220
 const LEVEL_THREE_PREPARATION_KEY = 'ibm-level-three-preparation'
+// Demo build: clicking the client, desk or chair always walks the player to this
+// exact spot on open floor below the furniture, then beginMeetingSequence() takes
+// over with its own short seat-approach animation from wherever they end up.
+const MEETING_STAND_POINT = { x: 720, y: 660 }
+// Generous on purpose: a player approaching from certain angles gets stopped by
+// the desk or chair's collider a little short of the exact point above.
+const MEETING_ARRIVAL_DISTANCE = 60
 
 type MeetingClient = {
   name: string
@@ -54,10 +63,8 @@ export class LevelFourScene extends Phaser.Scene {
   private chair!: Phaser.GameObjects.Image
   private interfaceCamera!: Phaser.Cameras.Scene2D.Camera
   private client!: MeetingClient
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
-  private wasd!: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
-  private interactionKey!: Phaser.Input.Keyboard.Key
-  private interactionPrompt!: Phaser.GameObjects.Container
+  private effects!: LevelOneEffects
+  private clickToMove!: ClickToMoveController
   private meetingOverlay?: MeetingOverlayHandle
   private notebookOverlay?: Phaser.GameObjects.DOMElement
   private obstacles: Phaser.GameObjects.Zone[] = []
@@ -94,15 +101,15 @@ export class LevelFourScene extends Phaser.Scene {
 
   create(): void {
     this.savedPrep = this.readSavedPrep()
+    this.effects = new LevelOneEffects(this)
     this.physics.world.setBounds(0, WALKABLE_TOP, WORLD_WIDTH, WORLD_HEIGHT - WALKABLE_TOP)
     this.createTilemapRoom()
     this.createFurniture()
     this.createPlayer()
     this.createCollisions()
-    this.configureKeyboard()
+    this.configureClickToMove()
     const worldObjects = [...this.children.list]
     this.createNavigationButtons()
-    this.interactionPrompt = this.createInteractionPrompt()
     this.createInterfaceCamera(worldObjects)
     this.cameras.main.fadeIn(500, 44, 44, 42)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.meetingOverlay?.destroy())
@@ -112,13 +119,11 @@ export class LevelFourScene extends Phaser.Scene {
     if (!this.player) return
 
     if (this.meetingOverlay || this.notebookOverlay || this.meetingSequenceActive) {
-      this.player.setVelocity(0)
-      this.interactionPrompt.setVisible(false)
+      this.clickToMove.stop()
       return
     }
 
     this.updateMovement()
-    this.updateMeetingInteraction()
     // Keep the floor shadow under the enlarged playable character's feet.
     this.playerShadow.setPosition(this.player.x, this.player.y + 134)
   }
@@ -227,10 +232,37 @@ export class LevelFourScene extends Phaser.Scene {
 
     // Separate client, desk and chair layers reproduce the wireframe perspective
     // while allowing the player to pass visually in front of the furniture.
-    this.add.image(720, 350, 'level-four-selected-client').setDisplaySize(175, 275).setDepth(7)
+    const client = this.add
+      .image(720, 350, 'level-four-selected-client')
+      .setDisplaySize(175, 275)
+      .setDepth(7)
+      .setInteractive({ useHandCursor: true })
     this.add.ellipse(720, 560, 515, 42, 0x2c2c2a, 0.18).setDepth(8)
-    this.add.image(720, 465, 'level-four-desk').setDisplaySize(480, 240).setDepth(10)
-    this.chair = this.add.image(720, 550, 'level-four-chair').setDisplaySize(145, 180).setDepth(12)
+    const desk = this.add
+      .image(720, 465, 'level-four-desk')
+      .setDisplaySize(480, 240)
+      .setDepth(10)
+      .setInteractive({ useHandCursor: true })
+    this.chair = this.add
+      .image(720, 550, 'level-four-chair')
+      .setDisplaySize(145, 180)
+      .setDepth(12)
+      .setInteractive({ useHandCursor: true })
+
+    // Demo build: click the client, desk or chair to walk over and start the
+    // meeting automatically on arrival — no proximity prompt, no E key.
+    const startMeeting = () => {
+      if (this.meetingSequenceActive || this.meetingOverlay) return
+      this.clickToMove.moveToObject(
+        MEETING_STAND_POINT,
+        0,
+        () => this.beginMeetingSequence(),
+        MEETING_ARRIVAL_DISTANCE
+      )
+    }
+    client.on('pointerdown', startMeeting)
+    desk.on('pointerdown', startMeeting)
+    this.chair.on('pointerdown', startMeeting)
 
     const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xffdda3, 0.05).setDepth(3)
     this.tweens.add({
@@ -288,38 +320,47 @@ export class LevelFourScene extends Phaser.Scene {
     this.cameras.main.ignore(interfaceObjects)
   }
 
-  private configureKeyboard(): void {
-    const keyboard = this.input.keyboard
-    if (!keyboard) throw new Error('Keyboard controls are unavailable.')
-
-    this.cursors = keyboard.createCursorKeys()
-    this.wasd = keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' }) as typeof this.wasd
-    this.interactionKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
-    keyboard.on('keydown-ESC', () => {
+  private configureClickToMove(): void {
+    this.input.keyboard?.on('keydown-ESC', () => {
       if (this.meetingOverlay) this.closeMeeting()
       else if (this.notebookOverlay) this.closeNotebook()
     })
+
+    this.input.setTopOnly(true)
+
+    this.clickToMove = new ClickToMoveController({
+      scene: this,
+      player: this.player,
+      effects: this.effects,
+      speed: PLAYER_SPEED,
+      worldWidth: WORLD_WIDTH,
+      worldHeight: WORLD_HEIGHT,
+    })
+
+    // Demo build: tap/click open ground to walk there. Objects with their own
+    // pointerdown handler (the client, the desk, a button) are skipped here —
+    // this only fires when the click didn't land on anything interactive.
+    this.input.on(
+      'pointerdown',
+      (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.meetingOverlay || this.notebookOverlay || this.meetingSequenceActive) return
+        if (currentlyOver.length > 0) return
+
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        this.clickToMove.moveTo(worldPoint.x, worldPoint.y)
+      }
+    )
   }
 
   private updateMovement(): void {
-    const direction = new Phaser.Math.Vector2(
-      Number(this.cursors.right.isDown || this.wasd.right.isDown) -
-        Number(this.cursors.left.isDown || this.wasd.left.isDown),
-      Number(this.cursors.down.isDown || this.wasd.down.isDown) -
-        Number(this.cursors.up.isDown || this.wasd.up.isDown)
-    )
+    this.clickToMove.update(this.time.now)
 
-    if (direction.lengthSq() === 0) {
-      this.player.setVelocity(0).setAngle(0)
-      return
-    }
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    const moving = body.velocity.lengthSq() > 0
 
-    direction.normalize().scale(PLAYER_SPEED)
-    this.player.setVelocity(direction.x, direction.y)
-    this.player.setFlipX(direction.x < 0)
-    this.player.setAngle(Math.sin(this.time.now / 95) * 1.8)
+    this.player.setFlipX(body.velocity.x < 0)
 
-    if (this.time.now - this.lastFootstepAt > 240) {
+    if (moving && this.time.now - this.lastFootstepAt > 240) {
       this.lastFootstepAt = this.time.now
       const step = this.add
         .circle(this.player.x, this.player.y + 134, 6, 0x2c2c2a, 0.2)
@@ -334,20 +375,11 @@ export class LevelFourScene extends Phaser.Scene {
     }
   }
 
-  private updateMeetingInteraction(): void {
-    const closeEnough = Phaser.Math.Distance.Between(this.player.x, this.player.y, 720, 650) < 235
-    this.interactionPrompt.setVisible(closeEnough)
-    if (closeEnough && Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
-      this.beginMeetingSequence()
-    }
-  }
-
   /** Mirrors Level 2's two-leg chair approach before the meeting panel opens. */
   private beginMeetingSequence(): void {
     if (this.meetingSequenceActive || this.meetingOverlay) return
     this.meetingSequenceActive = true
-    this.player.setVelocity(0)
-    this.interactionPrompt.setVisible(false)
+    this.clickToMove.stop()
     const body = this.player.body as Phaser.Physics.Arcade.Body
     body.enable = false
     this.playerShadow.setVisible(false)
@@ -395,23 +427,6 @@ export class LevelFourScene extends Phaser.Scene {
     })
     // Do not create the DOM panel until the cinematic camera movement has finished.
     this.time.delayedCall(1050, () => this.openMeeting())
-  }
-
-  private createInteractionPrompt(): Phaser.GameObjects.Container {
-    const container = this.add.container(720, 655).setDepth(100).setVisible(false)
-    const shadow = this.add.rectangle(5, 5, 270, 54, 0x2c2c2a, 0.55)
-    const panel = this.add.rectangle(0, 0, 270, 54, 0xfff4d6).setStrokeStyle(4, 0x2c2c2a)
-    const text = this.add
-      .text(0, 0, 'E  Start client meeting', {
-        fontFamily: 'Arial',
-        fontSize: '19px',
-        fontStyle: 'bold',
-        color: '#1f4f78',
-      })
-      .setOrigin(0.5)
-    container.add([shadow, panel, text])
-    this.tweens.add({ targets: container, y: 646, duration: 650, yoyo: true, repeat: -1 })
-    return container
   }
 
   private createNavigationButtons(): void {
