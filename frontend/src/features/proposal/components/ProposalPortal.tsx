@@ -73,7 +73,7 @@ export function ProposalPortal({ initialClientKey, availableClientKeys }: Propos
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <ProposalHeader
         clients={availableClientKeys.map((key) => ({ key, name: PERSONAS[key].name }))}
         activeKey={activeKey}
@@ -81,7 +81,7 @@ export function ProposalPortal({ initialClientKey, availableClientKeys }: Propos
       />
 
       {availableClientKeys.map((key) => (
-        <div key={key} className={key === activeKey ? 'flex flex-1 flex-col' : 'hidden'}>
+        <div key={key} className={key === activeKey ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
           <ProposalWorkspace persona={PERSONAS[key]} />
         </div>
       ))}

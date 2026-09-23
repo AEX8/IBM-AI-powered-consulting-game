@@ -31,13 +31,16 @@ export async function POST(request: Request) {
 
     const sessionId = body.sessionId?.trim()
     const personaId = body.personaId?.trim()
-    const selectedObjectives = Array.isArray(body.selectedObjectives)
-      ? body.selectedObjectives
-      : []
+    const selectedObjectives = Array.isArray(body.selectedObjectives) ? body.selectedObjectives : []
     const selectedQuestions = Array.isArray(body.selectedQuestions) ? body.selectedQuestions : []
 
     if (!sessionId || !personaId) {
       return NextResponse.json({ error: 'sessionId and personaId are required' }, { status: 400 })
+    }
+
+    const personaKey = clientKeyFromPersonaId(personaId)
+    if (!personaKey) {
+      return NextResponse.json({ error: 'Unknown client' }, { status: 400 })
     }
 
     const scoring = scoreMeetingPrep(personaId, selectedObjectives, selectedQuestions)
@@ -64,26 +67,17 @@ export async function POST(request: Request) {
       { merge: true }
     )
 
-    // Record the score on the shared scorecard. A failure here must not lose the
-    // saved preparation, so it is logged instead of returned as an error.
-    const personaKey = clientKeyFromPersonaId(personaId)
-
-    if (personaKey) {
-      try {
-        await saveStageCompletion(uid, {
-          stageId: MEETING_PREP_STAGE_ID,
-          personaKey,
-          performance: scoring.totalScore >= SCORE_RESULTS.strong.min ? 'strong' : 'developing',
-          metrics: {
-            prepScore: scoring.totalScore,
-            objectiveScore: scoring.objectiveScore,
-            questionScore: scoring.questionScore,
-          },
-        })
-      } catch (progressError) {
-        console.error('Failed to record meeting prep progress:', progressError)
-      }
-    }
+    // The submission is only complete when its shared progress is saved too.
+    await saveStageCompletion(uid, {
+      stageId: MEETING_PREP_STAGE_ID,
+      personaKey,
+      performance: scoring.totalScore >= SCORE_RESULTS.strong.min ? 'strong' : 'developing',
+      metrics: {
+        prepScore: scoring.totalScore,
+        objectiveScore: scoring.objectiveScore,
+        questionScore: scoring.questionScore,
+      },
+    })
 
     return NextResponse.json({
       success: true,

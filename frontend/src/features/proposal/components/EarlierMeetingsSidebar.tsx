@@ -16,7 +16,7 @@ export function EarlierMeetingsSidebar({
   onSelectNote,
 }: EarlierMeetingsSidebarProps) {
   return (
-    <aside className="bg-dark-blue w-[280px] shrink-0 px-6 py-8">
+    <aside className="bg-dark-blue max-h-[30dvh] w-full shrink-0 overflow-y-auto overscroll-contain px-6 py-8 md:max-h-none md:w-[280px] md:pb-28">
       <div className="border-charcoal bg-honey-wood flex h-14 w-14 items-center justify-center rounded-full border-[3px] text-lg font-extrabold text-white">
         {clientInitials}
       </div>

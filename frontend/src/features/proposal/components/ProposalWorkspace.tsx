@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { recordStageCompletion } from '@/features/progress/actions/progress.actions'
 import type { StageCompletionReward } from '@/features/progress/progress'
@@ -13,7 +14,7 @@ import { ProposalOutcomeScreen } from './ProposalOutcomeScreen'
 import { MAX_NEGOTIATION_ROUNDS, decideOutcome, weakestDimension } from '../scoring'
 import { PROPOSAL_STAGE_ID, acceptedSkillDeltas, performanceForRound } from '../rewards'
 import type { ProposalPersona } from '../personas'
-import type { ProposalFormValues, ProposalWorkspaceView } from '../types'
+import type { ProposalFormValues, ProposalScore, ProposalWorkspaceView } from '../types'
 
 // Demo build: a ready-to-send proposal per client, so the player only has to
 // review and press send. Fields stay editable in case anyone wants to tweak them.
@@ -60,6 +61,7 @@ type ProposalWorkspaceProps = {
 }
 
 export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
+  const router = useRouter()
   const [view, setView] = useState<ProposalWorkspaceView>('editing')
   const [proposal, setProposal] = useState<ProposalFormValues>(() =>
     createPrefilledProposal(persona.key)
@@ -69,6 +71,9 @@ export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [outcome, setOutcome] = useState<'accepted' | 'rejected' | null>(null)
   const [rewards, setRewards] = useState<StageCompletionReward | null>(null)
+  const [scorecard, setScorecard] = useState<{ scores: ProposalScore; feedback: string } | null>(
+    null
+  )
   const [isScoring, setIsScoring] = useState(false)
   const [scoringError, setScoringError] = useState('')
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
@@ -104,6 +109,10 @@ export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
       if (!scoreResponse.ok) throw new Error('Scoring request failed')
 
       const score = await scoreResponse.json()
+      setScorecard({
+        scores: score,
+        feedback: typeof score.feedback === 'string' ? score.feedback : '',
+      })
       const decision = decideOutcome(score)
 
       if (decision === 'accept') {
@@ -157,88 +166,131 @@ export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
     }
   }
 
+  function playAgain() {
+    setProposal(createPrefilledProposal(persona.key))
+    setRound(1)
+    setObjection('')
+    setSuggestions([])
+    setOutcome(null)
+    setRewards(null)
+    setScorecard(null)
+    setView('editing')
+  }
+
+  async function retryProgressSave() {
+    setIsScoring(true)
+    const reward = await saveAcceptedResult()
+    setRewards(reward)
+    setIsScoring(false)
+    if (!reward) toast.error('Progress could not be saved. Please try again.')
+  }
+
   return (
-    <div className="flex flex-1">
-      {view === 'editing' && (
-        <>
-          <EarlierMeetingsSidebar
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ol
+        aria-label="Proposal progress"
+        className="bg-warm-cream flex shrink-0 flex-wrap gap-6 px-6 py-5"
+      >
+        {['Proposal', 'Review', 'Negotiation', 'Outcome'].map((label, index) => {
+          const active = ['editing', 'review', 'negotiating', 'outcome'].indexOf(view)
+          return (
+            <li
+              key={label}
+              aria-current={active === index ? 'step' : undefined}
+              className={`flex items-center gap-2 text-sm font-bold ${active >= index ? 'text-dark-blue' : 'text-charcoal/60'}`}
+            >
+              <span
+                className={`flex size-8 items-center justify-center rounded-full ${active >= index ? 'bg-dark-blue text-white' : 'bg-warm-grey'}`}
+              >
+                {index + 1}
+              </span>
+              {label}
+            </li>
+          )
+        })}
+      </ol>
+      <div
+        className={`flex min-h-0 flex-1 flex-col md:flex-row ${view === 'editing' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+      >
+        {view === 'editing' && (
+          <>
+            <EarlierMeetingsSidebar
+              clientName={persona.name}
+              clientInitials={persona.initials}
+              notes={persona.earlierNotes}
+              selectedNoteId={selectedNoteId}
+              onSelectNote={setSelectedNoteId}
+            />
+
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-8 pb-28 md:px-10">
+              {scoringError && (
+                <p className="mb-4 text-sm font-semibold text-red-600">{scoringError}</p>
+              )}
+
+              <ProposalForm
+                clientCompany={persona.company}
+                objectives={persona.objectives}
+                defaultValues={proposal}
+                suggestions={suggestions}
+                onSubmit={(values) => {
+                  setProposal(values)
+                  setView('review')
+                }}
+              />
+            </div>
+
+            {selectedNote && (
+              <MeetingContextDrawer note={selectedNote} onClose={() => setSelectedNoteId(null)} />
+            )}
+          </>
+        )}
+
+        {view === 'review' && (
+          <ProposalDocumentPreview
+            clientName={persona.name}
+            objectives={persona.objectives}
+            proposal={proposal}
+            isSubmitting={isScoring}
+            onBackToEditing={() => setView('editing')}
+            onSendToClient={handleSendToClient}
+          />
+        )}
+
+        {view === 'negotiating' && (
+          <ClientObjectionModal
             clientName={persona.name}
             clientInitials={persona.initials}
-            notes={persona.earlierNotes}
-            selectedNoteId={selectedNoteId}
-            onSelectNote={setSelectedNoteId}
+            roundNumber={round}
+            objection={objection}
+            onAdjustProposal={() => {
+              setRound((current) => current + 1)
+              setView('editing')
+            }}
           />
+        )}
 
-          <div className="flex-1 px-10 py-8">
-            {scoringError && (
-              <p className="mb-4 text-sm font-semibold text-red-600">{scoringError}</p>
-            )}
+        {view === 'outcome' && outcome === 'accepted' && (
+          <ProposalOutcomeScreen
+            outcome="accepted"
+            closedOnRound={round}
+            rewards={rewards}
+            scorecard={scorecard}
+            savingProgress={isScoring}
+            onRetrySave={() => void retryProgressSave()}
+            onPlayAgain={playAgain}
+            onContinue={() => router.push('/dashboard')}
+          />
+        )}
 
-            <ProposalForm
-              clientCompany={persona.company}
-              objectives={persona.objectives}
-              defaultValues={proposal}
-              suggestions={suggestions}
-              onSubmit={(values) => {
-                setProposal(values)
-                setView('review')
-              }}
-            />
-          </div>
-
-          {selectedNote && (
-            <MeetingContextDrawer note={selectedNote} onClose={() => setSelectedNoteId(null)} />
-          )}
-        </>
-      )}
-
-      {view === 'review' && (
-        <ProposalDocumentPreview
-          clientName={persona.name}
-          objectives={persona.objectives}
-          proposal={proposal}
-          isSubmitting={isScoring}
-          onBackToEditing={() => setView('editing')}
-          onSendToClient={handleSendToClient}
-        />
-      )}
-
-      {view === 'negotiating' && (
-        <ClientObjectionModal
-          clientName={persona.name}
-          clientInitials={persona.initials}
-          roundNumber={round}
-          objection={objection}
-          onAdjustProposal={() => {
-            setRound((current) => current + 1)
-            setView('editing')
-          }}
-        />
-      )}
-
-      {view === 'outcome' && outcome === 'accepted' && (
-        <ProposalOutcomeScreen
-          outcome="accepted"
-          closedOnRound={round}
-          rewards={rewards}
-          onContinue={() => toast.success("Level 6 isn't built yet — nice work closing this one!")}
-        />
-      )}
-
-      {view === 'outcome' && outcome === 'rejected' && (
-        <ProposalOutcomeScreen
-          outcome="rejected"
-          onRetry={() => {
-            setProposal(createPrefilledProposal(persona.key))
-            setRound(1)
-            setObjection('')
-            setSuggestions([])
-            setOutcome(null)
-            setRewards(null)
-            setView('editing')
-          }}
-        />
-      )}
+        {view === 'outcome' && outcome === 'rejected' && (
+          <ProposalOutcomeScreen
+            outcome="rejected"
+            scorecard={scorecard}
+            onRetry={playAgain}
+            onContinue={() => router.push('/dashboard')}
+          />
+        )}
+      </div>
     </div>
   )
 }

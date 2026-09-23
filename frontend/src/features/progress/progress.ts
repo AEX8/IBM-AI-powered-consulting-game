@@ -178,13 +178,35 @@ export function normalizeProgressData(raw: unknown): ProgressData {
     }
   }
 
+  const completedLevels = toNumberArray(source.completedLevels).filter(
+    (stageId) => Number.isInteger(stageId) && stageId >= 1 && stageId <= TOTAL_STAGES
+  )
+  const latestCompleted = Math.max(0, ...completedLevels)
+  // Older sessions can contain a later saved stage but lack earlier scorecard
+  // entries. A completed later stage implies the preceding stages were reached.
+  const recoveredLevels = Array.from({ length: latestCompleted }, (_, index) => index + 1)
+  const recordedXpByStage = new Map<number, number>()
+  for (const [key, result] of Object.entries(stageResults)) {
+    if (!result.completed) continue
+    const stageId = Number(key.split('_', 1)[0])
+    if (!Number.isInteger(stageId) || stageId < 1 || stageId > TOTAL_STAGES) continue
+    recordedXpByStage.set(stageId, Math.max(recordedXpByStage.get(stageId) ?? 0, result.xp))
+  }
+  const recoveredXp = recoveredLevels.reduce(
+    (sum, stageId) =>
+      sum + Math.max(recordedXpByStage.get(stageId) ?? 0, xpForStage(stageId, 'developing')),
+    0
+  )
+
   return {
     completedPersonaIds: toStringArray(source.completedPersonaIds),
-    completedLevels: toNumberArray(source.completedLevels),
-    totalXp: toNumber(source.totalXp),
+    completedLevels: recoveredLevels,
+    totalXp: Math.max(toNumber(source.totalXp), recoveredXp),
     skillStats,
     stageResults,
-    badges: toStringArray(source.badges),
+    badges: [
+      ...new Set([...toStringArray(source.badges), ...recoveredLevels.map((id) => `stage-${id}`)]),
+    ],
   }
 }
 
@@ -197,7 +219,11 @@ export function applyStageCompletion(
   const completesStage = input.completesStage !== false
 
   const xpForThisRun = completesStage ? xpForStage(input.stageId, input.performance) : 0
-  const previousXp = previous?.xp ?? 0
+  // A recovered earlier stage already has its minimum XP included in totalXp.
+  // Replaying it can improve that award, but must not grant the full amount again.
+  const previousXp =
+    previous?.xp ??
+    (current.completedLevels.includes(input.stageId) ? xpForStage(input.stageId, 'developing') : 0)
   const xpAwarded = Math.max(0, xpForThisRun - previousXp)
   const keepPrevious = previous !== undefined && previous.xp > xpForThisRun
 

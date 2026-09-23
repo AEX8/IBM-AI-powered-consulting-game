@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   title: 'Consulting Lobby',
 }
 
-export default async function DashboardPage({ searchParams }: {
+export default async function DashboardPage({
+  searchParams,
+}: {
   searchParams: Promise<{ arrival?: string }>
 }) {
   const { arrival } = await searchParams
@@ -77,43 +79,61 @@ export default async function DashboardPage({ searchParams }: {
         ))}
       </div>
 
-      <div className="mx-auto flex h-full max-w-[1900px] flex-col px-4 py-3 sm:px-5 lg:px-6 2xl:px-8">
+      <div className="mx-auto flex h-full max-w-[1900px] flex-col px-4 py-2 sm:px-5 lg:px-6 2xl:px-8">
         <section className="shrink-0" aria-labelledby="lobby-heading">
-          <p className="text-dark-blue text-[10px] font-extrabold tracking-[0.12em] uppercase sm:text-xs">
+          <p className="text-dark-blue text-[10px] leading-none font-extrabold tracking-[0.12em] uppercase">
             Welcome, {consultantName}
           </p>
 
           <h1
             id="lobby-heading"
-            className="text-charcoal mt-0.5 text-[clamp(1.15rem,1.8vw,1.65rem)] leading-tight font-extrabold"
+            className="text-charcoal mt-0.5 text-[clamp(1.1rem,1.5vw,1.4rem)] leading-tight font-extrabold"
           >
             Your consultancy journey starts here
           </h1>
 
-          <p className="text-charcoal mt-0.5 text-xs font-semibold sm:text-sm">
+          <p className="text-charcoal text-xs leading-tight font-semibold">
             Complete each stage of the consulting loop.
           </p>
         </section>
 
-        <div className="mt-3 grid items-start gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_220px] 2xl:grid-cols-[minmax(0,1fr)_260px] 2xl:gap-5">
+        <div className="mt-1 grid items-start gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_210px] xl:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_240px] 2xl:gap-5">
           <section
-            className="border-charcoal bg-honey-wood overflow-hidden rounded-2xl border-[5px] p-2 shadow-[6px_7px_0_var(--wood-shadow)] xl:h-full"
+            className="border-charcoal bg-honey-wood overflow-hidden rounded-2xl border-[5px] p-2 shadow-[6px_7px_0_var(--wood-shadow)] xl:h-full xl:min-h-0"
             aria-label="Consulting stages"
           >
-            <div className="relative z-10 grid gap-1 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,2fr)] xl:h-full 2xl:grid-cols-[minmax(330px,0.9fr)_minmax(0,2fr)]">
+            <div className="relative z-10 grid gap-1 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,2fr)] xl:h-full xl:min-h-0 2xl:grid-cols-[minmax(330px,0.9fr)_minmax(0,2fr)]">
               <div className="min-h-[520px] xl:h-full xl:min-h-0 [&>section]:h-full">
-                <ConsultingRoom stage={findLeadStage} completedStageIds={progress.completedStageIds} />
+                <ConsultingRoom
+                  stage={findLeadStage}
+                  completedStageIds={progress.completedStageIds}
+                />
               </div>
 
-              <div className="grid gap-1 sm:grid-cols-2 xl:min-h-0 xl:grid-rows-2">
-                <ConsultingRoom stage={outreachStage} completedStageIds={progress.completedStageIds} />
-                <ConsultingRoom stage={preparationStage} completedStageIds={progress.completedStageIds} />
+              <div className="grid gap-1 sm:grid-cols-2 xl:h-full xl:min-h-0 xl:grid-rows-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <ConsultingRoom
+                  stage={outreachStage}
+                  completedStageIds={progress.completedStageIds}
+                />
+                <ConsultingRoom
+                  stage={preparationStage}
+                  completedStageIds={progress.completedStageIds}
+                />
 
                 <div className="sm:col-span-2 xl:min-h-0">
-                  <div className="grid gap-1 md:grid-cols-3 xl:h-full">
-                    <ConsultingRoom stage={closeDealStage} completedStageIds={progress.completedStageIds} />
-                    <ConsultingRoom stage={proposalStage} completedStageIds={progress.completedStageIds} />
-                    <ConsultingRoom stage={clientMeetingStage} completedStageIds={progress.completedStageIds} />
+                  <div className="grid gap-1 md:grid-cols-3 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.85fr)]">
+                    <ConsultingRoom
+                      stage={closeDealStage}
+                      completedStageIds={progress.completedStageIds}
+                    />
+                    <ConsultingRoom
+                      stage={proposalStage}
+                      completedStageIds={progress.completedStageIds}
+                    />
+                    <ConsultingRoom
+                      stage={clientMeetingStage}
+                      completedStageIds={progress.completedStageIds}
+                    />
                   </div>
                 </div>
               </div>

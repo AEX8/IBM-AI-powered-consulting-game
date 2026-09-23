@@ -159,6 +159,46 @@ describe('normalizeProgressData', () => {
     })
     expect(data.stageResults['5_bad']).toBeUndefined()
   })
+
+  it('recovers earlier stages and minimum XP when an older scorecard only saved Level 3', () => {
+    const data = normalizeProgressData({
+      completedLevels: [3],
+      totalXp: 500,
+      stageResults: {
+        '3_sarah': { performance: 'strong', xp: 500, completed: true },
+      },
+    })
+
+    expect(toConsultantProgress(data).completedStageIds).toEqual([1, 2, 3])
+    expect(data.totalXp).toBe(990)
+    expect(data.badges).toEqual(['stage-1', 'stage-2', 'stage-3'])
+    expect(normalizeProgressData(data).totalXp).toBe(990)
+  })
+
+  it('preserves higher saved XP and does not recover stages from an unfinished result', () => {
+    const data = normalizeProgressData({
+      completedLevels: [2],
+      totalXp: 1500,
+      stageResults: {
+        '3_sarah': { performance: 'strong', xp: 0, completed: false },
+      },
+    })
+
+    expect(data.completedLevels).toEqual([1, 2])
+    expect(data.totalXp).toBe(1500)
+  })
+
+  it('does not award recovered stage XP twice when that stage is replayed', () => {
+    const recovered = normalizeProgressData({ completedLevels: [3], totalXp: 500 })
+    const replayed = applyStageCompletion(recovered, {
+      stageId: 1,
+      personaKey: 'sarah',
+      performance: 'strong',
+    })
+
+    expect(replayed.reward.xpAwarded).toBe(90)
+    expect(replayed.data.totalXp).toBe(930)
+  })
 })
 
 describe('toConsultantProgress', () => {

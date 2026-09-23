@@ -630,109 +630,113 @@ export class LevelTwoScene extends Phaser.Scene {
     })
   }
 
+  private async handleOutreachEmailSent(submission: OutreachEmailSubmission): Promise<void> {
+    window.dispatchEvent(
+      new CustomEvent<OutreachEmailSubmission>('level-two-email-submitted', {
+        detail: submission,
+      })
+    )
+    const user = getClientAuth().currentUser
+    const personaId = submission.client.personaId
 
-  
-    private async handleOutreachEmailSent(
-  submission: OutreachEmailSubmission
-): Promise<void> {
-  window.dispatchEvent(
-    new CustomEvent<OutreachEmailSubmission>('level-two-email-submitted', {
-      detail: submission,
+    if (user && personaId) {
+      const sessionRef = doc(getSessionsCollection(), `${user.uid}_${personaId}_level2`)
+
+      try {
+        await setDoc(
+          sessionRef,
+          {
+            id: sessionRef.id,
+            uid: user.uid,
+            personaId,
+            level: 2,
+            status: 'completed',
+            messages: [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            _schemaVersion: 1,
+          },
+          { merge: true }
+        )
+      } catch (error) {
+        console.error('Could not save the outreach session:', error)
+      }
+    }
+    this.showToast(`Email sent to ${submission.client.name}`)
+
+    this.closeLaptopOverlay()
+    const lunchBreak = this.showLunchBreakOverlay()
+
+    // The grading request can finish almost instantly. Keep the lunch interlude
+    // visible long enough to feel intentional, then unlock the next action only
+    // when both the animation and server response are ready.
+    const minimumBreak = new Promise<void>((resolve) => {
+      this.time.delayedCall(2200, resolve)
     })
-  )
-  const user = getClientAuth().currentUser
-const personaId = submission.client.personaId
 
-if (user && personaId) {
-  const sessionRef = doc(
-    getSessionsCollection(),
-    `${user.uid}_${personaId}_level2`
-  )
-
-  await setDoc(
-    sessionRef,
-    {
-      id: sessionRef.id,
-      uid: user.uid,
-      personaId,
-      level: 2,
-      status: 'completed',
-      messages: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      _schemaVersion: 1,
-    },
-    { merge: true }
-  )
-}
-  this.showToast(`Email sent to ${submission.client.name}`)
-
-  this.closeLaptopOverlay()
-  const lunchBreak = this.showLunchBreakOverlay()
-
-  // The grading request can finish almost instantly. Keep the lunch interlude
-  // visible long enough to feel intentional, then unlock the next action only
-  // when both the animation and server response are ready.
-  const minimumBreak = new Promise<void>((resolve) => {
-    this.time.delayedCall(2200, resolve)
-  })
-
-  try {
-    const response = await fetch('/api/outreach/grade', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: `${submission.subject}\n\n${submission.body}`,
-        persona: {
-          name: submission.client.name,
-          personaId: submission.client.personaId ?? null,
+    try {
+      const response = await fetch('/api/outreach/grade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
-    })
+        body: JSON.stringify({
+          email: `${submission.subject}\n\n${submission.body}`,
+          persona: {
+            name: submission.client.name,
+            personaId: submission.client.personaId ?? null,
+          },
+        }),
+      })
 
-    if (!response.ok) {
-      throw new Error('Grading request failed')
-    }
+      if (!response.ok) {
+        throw new Error('Grading request failed')
+      }
 
-    const result = (await response.json()) as {
-      success?: boolean
-      score?: number
-      feedback?: string
-    }
+      const result = (await response.json()) as {
+        success?: boolean
+        score?: number
+        feedback?: string
+      }
 
-    if (
-      result.success !== true ||
-      typeof result.score !== 'number' ||
-      typeof result.feedback !== 'string'
-    ) {
-      throw new Error('Invalid grading response')
-    }
-    void this.reportOutreachScore(submission.client.personaId, result.score)
-    await minimumBreak
-    lunchBreak.unlockContinue('View your grade', () => {
-      lunchBreak.overlay.destroy(true)
-      this.showOutreachResult(result.score!, result.feedback!)
-    })
-  } catch (error) {
-    console.error('Level 2 outreach grading failed:', error)
-
-    await minimumBreak
-    lunchBreak.unlockContinue('View grade', () => {
-      lunchBreak.overlay.destroy(true)
-      this.showOutreachResult(
-        null,
-        'Your email was sent, but the grading service is currently unavailable. No score has been assigned. Please try again.'
+      if (
+        result.success !== true ||
+        typeof result.score !== 'number' ||
+        typeof result.feedback !== 'string'
+      ) {
+        throw new Error('Invalid grading response')
+      }
+      const progressSaved = await this.reportOutreachScore(
+        submission.client.personaId,
+        result.score
       )
-    })
+      if (!progressSaved) throw new Error('The outreach result could not be saved')
+      await minimumBreak
+      lunchBreak.unlockContinue('View your grade', () => {
+        lunchBreak.overlay.destroy(true)
+        this.showOutreachResult(result.score!, result.feedback!)
+      })
+    } catch (error) {
+      console.error('Level 2 outreach grading failed:', error)
+
+      await minimumBreak
+      lunchBreak.unlockContinue('View grade', () => {
+        lunchBreak.overlay.destroy(true)
+        this.showOutreachResult(
+          null,
+          error instanceof Error && error.message === 'The outreach result could not be saved'
+            ? 'Your email was graded, but progress could not be saved. Please try again before continuing.'
+            : 'Your email was sent, but the grading service is currently unavailable. No score has been assigned. Please try again.'
+        )
+      })
+    }
   }
-}
-    // Saving progress must never delay or break the lunch-break screen, so failures
-  // are logged and the caller does not wait for it.
-  private async reportOutreachScore(personaId: string | undefined, score: number): Promise<void> {
+  private async reportOutreachScore(
+    personaId: string | undefined,
+    score: number
+  ): Promise<boolean> {
     const personaKey = personaId ? clientKeyFromPersonaId(personaId) : null
-    if (!personaKey) return
+    if (!personaKey) return false
 
     // Only a passing email finishes the level; failed attempts still save their score.
     const passed = score >= PASSING_OUTREACH_SCORE
@@ -747,8 +751,10 @@ if (user && personaId) {
       })
 
       if (!result.success) console.error('Could not save the Level 2 score:', result.error)
+      return result.success
     } catch (error) {
       console.error('Could not save the Level 2 score:', error)
+      return false
     }
   }
 
@@ -801,9 +807,7 @@ if (user && personaId) {
       }
     )
 
-    const progressBg = this.add
-      .rectangle(1180, 443, 390, 26, 0xd9d9d9)
-      .setStrokeStyle(3, 0x2c2c2a)
+    const progressBg = this.add.rectangle(1180, 443, 390, 26, 0xd9d9d9).setStrokeStyle(3, 0x2c2c2a)
     const progress = this.add.rectangle(987, 443, 0, 22, 0x6f9e57).setOrigin(0, 0.5)
     const status = this.add
       .text(1180, 485, 'Review in progress…', {
@@ -822,52 +826,51 @@ if (user && personaId) {
         padding: { left: 48, right: 48, top: 16, bottom: 16 },
       })
       .setOrigin(0.5)
-  overlay.add([
-    background,
-    panelShadow,
-    questPanel,
-    panelHeader,
-    title,
-    questTag,
-    message,
-    progressBg,
-    progress,
-    status,
-    continueButton,
-  ])
+    overlay.add([
+      background,
+      panelShadow,
+      questPanel,
+      panelHeader,
+      title,
+      questTag,
+      message,
+      progressBg,
+      progress,
+      status,
+      continueButton,
+    ])
 
- 
-  this.cameras.main.ignore(overlay)
+    this.cameras.main.ignore(overlay)
 
-  this.tweens.add({
-    targets: progress,
-    width: 386,
-    duration: 1800,
-    ease: 'Linear',
-  })
+    this.tweens.add({
+      targets: progress,
+      width: 386,
+      duration: 1800,
+      ease: 'Linear',
+    })
 
-  return {
-    overlay,
-    unlockContinue: (label, onContinue) => {
-      status.setText(label.toLowerCase().includes('grade') ? 'Review ready!' : 'Review update ready.')
-      continueButton
-        .setText(label)
-        .setColor('#ffffff')
-        .setBackgroundColor('#5f914f')
-        .setInteractive({ useHandCursor: true })
-        .once('pointerdown', onContinue)
-      this.tweens.add({
-        targets: continueButton,
-        scale: { from: 1, to: 1.06 },
-        yoyo: true,
-        repeat: 1,
-        duration: 180,
-      })
-    },
+    return {
+      overlay,
+      unlockContinue: (label, onContinue) => {
+        status.setText(
+          label.toLowerCase().includes('grade') ? 'Review ready!' : 'Review update ready.'
+        )
+        continueButton
+          .setText(label)
+          .setColor('#ffffff')
+          .setBackgroundColor('#5f914f')
+          .setInteractive({ useHandCursor: true })
+          .once('pointerdown', onContinue)
+        this.tweens.add({
+          targets: continueButton,
+          scale: { from: 1, to: 1.06 },
+          yoyo: true,
+          repeat: 1,
+          duration: 180,
+        })
+      },
+    }
   }
-}
-
-
 
   private showOutreachResult(score: number | null, feedback: string): void {
     const overlay = this.add.container(0, 0).setScrollFactor(0).setDepth(8000)
@@ -891,9 +894,7 @@ if (user && personaId) {
       })
       .setOrigin(0.5)
 
-    const scoreCard = this.add
-      .rectangle(370, 375, 390, 440, 0xe7f0f6)
-      .setStrokeStyle(5, 0x2c2c2a)
+    const scoreCard = this.add.rectangle(370, 375, 390, 440, 0xe7f0f6).setStrokeStyle(5, 0x2c2c2a)
     const stageBadge = this.add
       .text(370, 190, 'LEVEL 2  •  OUTREACH', {
         fontFamily: 'Arial',
@@ -922,11 +923,7 @@ if (user && personaId) {
       .text(
         370,
         470,
-        score === null
-          ? 'GRADING UNAVAILABLE'
-          : passed
-            ? 'MISSION COMPLETE'
-            : 'RETRY REQUIRED',
+        score === null ? 'GRADING UNAVAILABLE' : passed ? 'MISSION COMPLETE' : 'RETRY REQUIRED',
         {
           fontFamily: 'Arial',
           fontSize: '22px',
@@ -1147,7 +1144,6 @@ if (user && personaId) {
       ease: 'Sine.easeInOut',
     })
   }
-
 
   private readMetClients(): MetClient[] {
     const storedClients = window.localStorage.getItem(LEVEL_ONE_MET_CLIENTS_KEY)

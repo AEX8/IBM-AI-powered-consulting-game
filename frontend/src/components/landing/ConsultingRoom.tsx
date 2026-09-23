@@ -35,7 +35,8 @@ const subscribeToLevelThreeCompletion = (changed: () => void) => {
 const readLevelThreeCompletion = () => localStorage.getItem(LEVEL_THREE_COMPLETION_KEY) === 'true'
 // A query string alone cannot award completion. The saved completion and pending
 // arrival flag must both exist before the one-time animation is displayed.
-const readLevelThreeArrival = () => readLevelThreeCompletion() && sessionStorage.getItem(LEVEL_THREE_CELEBRATION_KEY) === 'true'
+const readLevelThreeArrival = () =>
+  readLevelThreeCompletion() && sessionStorage.getItem(LEVEL_THREE_CELEBRATION_KEY) === 'true'
 
 const subscribeToLevelOneCompletion = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -107,8 +108,16 @@ const roomImageDescriptionByType: Record<ConsultingStage['roomType'], string> = 
 
 export default function ConsultingRoom({ stage, completedStageIds = [] }: ConsultingRoomProps) {
   const [isUnlocking, setIsUnlocking] = useState(false)
-  const levelThreeCompleted = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeCompletion, () => false)
-  const levelThreeArrival = useSyncExternalStore(subscribeToLevelThreeCompletion, readLevelThreeArrival, () => false)
+  const levelThreeCompleted = useSyncExternalStore(
+    subscribeToLevelThreeCompletion,
+    readLevelThreeCompletion,
+    () => false
+  )
+  const levelThreeArrival = useSyncExternalStore(
+    subscribeToLevelThreeCompletion,
+    readLevelThreeArrival,
+    () => false
+  )
 
   useEffect(() => {
     if (stage.id !== 4 || !levelThreeArrival) return
@@ -205,27 +214,12 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
 
   const isInitialLevelOneLock = stage.id === 1 && !levelOneUnlocked && !levelOneCompleted
 
-  // CHANGED: renamed from `effectiveStatus`. This is what the browser flags say.
-  const localStatus: ConsultingStage['status'] =
-    levelThreeCompleted && stage.id <= 3 ? 'completed'
-      : levelThreeCompleted && stage.id === 4 ? 'active'
-      : (levelOneCompleted || levelTwoCompleted) && stage.id === 1
-      ? 'completed'
-      : levelTwoCompleted && stage.id === 2
-        ? 'completed'
-        : levelTwoCompleted && stage.id === 3
-          ? 'active'
-          : levelOneCompleted && stage.id === 2
-            ? 'active'
-        : isInitialLevelOneLock
-          ? 'locked'
-          : stage.status
+  // Room status comes from the saved scorecard. Browser flags only control the
+  // one-time arrival animations and the initial Level 1 entrance.
+  const localStatus: ConsultingStage['status'] = isInitialLevelOneLock ? 'locked' : stage.status
 
-  // NEW: saved progress is the source of truth. The browser flags above stay as a
-  // fallback for levels that do not report to it yet. Stage 6 has no page, so it
-  // stays locked.
   const savedCompleted = completedStageIds.includes(stage.id)
-  const savedUnlocked = stage.id > 1 && stage.id <= 5 && completedStageIds.includes(stage.id - 1)
+  const savedUnlocked = stage.id > 1 && stage.id <= 6 && completedStageIds.includes(stage.id - 1)
 
   const effectiveStatus: ConsultingStage['status'] = savedCompleted
     ? 'completed'
@@ -241,7 +235,10 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
   const isExpandedRoomImage = stage.id !== 1 && !isLocked
 
   const isNextLevelUnlocked =
-    (levelOneCompleted && stage.id === 2) || (levelTwoCompleted && stage.id === 3) || (levelThreeCompleted && stage.id === 4)
+    savedUnlocked &&
+    ((levelOneCompleted && stage.id === 2) ||
+      (levelTwoCompleted && stage.id === 3) ||
+      (levelThreeCompleted && stage.id === 4))
 
   const isShowingUnlockAnimation = isUnlocking && stage.id === 1
 
@@ -371,7 +368,9 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
             className={`relative h-full w-full transition-transform duration-500 ${
               stage.id === 1
                 ? 'translate-y-2'
-                : isExpandedRoomImage
+                : stage.id === 5
+                  ? 'origin-bottom scale-[0.88]'
+                  : isExpandedRoomImage
                   ? 'origin-bottom scale-[1.1]'
                   : ''
             }`}

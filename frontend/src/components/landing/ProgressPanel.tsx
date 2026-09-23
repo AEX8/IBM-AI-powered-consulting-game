@@ -1,4 +1,4 @@
-import { SKILL_KEYS, SKILL_LABELS, type ConsultantProgress } from '@/features/progress/progress'
+import type { ConsultantProgress } from '@/features/progress/progress'
 
 type ProgressPanelProps = {
   progress: ConsultantProgress
@@ -17,7 +17,7 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
 
   return (
     <aside
-      className="grid content-start gap-3 xl:h-full xl:grid-rows-[auto_auto_1fr]"
+      className="grid content-start gap-3 xl:h-full xl:min-h-0"
       aria-label="Consultant progress"
     >
       <section className="game-progress-panel border-charcoal bg-cloud-white rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
@@ -93,32 +93,8 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
 
             <dd className="text-dark-blue font-extrabold">{progress.badgesCollected}</dd>
           </div>
-
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-charcoal flex items-center gap-2">
-              <span
-                className="border-charcoal bg-light-blue h-3 w-3 shrink-0 rounded-full border-2"
-                aria-hidden="true"
-              />
-              Duration
-            </dt>
-
-            <dd className="text-dark-blue font-extrabold">{progress.durationHours} Hrs</dd>
-          </div>
         </dl>
 
-        <div className="border-charcoal/20 mt-4 border-t-2 pt-3">
-          <h3 className="text-dark-blue text-sm font-extrabold">Consulting skills</h3>
-
-          <dl className="mt-2 space-y-2 text-xs">
-            {SKILL_KEYS.map((skill) => (
-              <div key={skill} className="flex items-center justify-between gap-2">
-                <dt className="text-charcoal">{SKILL_LABELS[skill]}</dt>
-                <dd className="text-dark-blue font-extrabold">{progress.skillStats[skill]}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
       </section>
     </aside>
   )

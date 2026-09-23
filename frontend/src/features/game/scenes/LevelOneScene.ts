@@ -69,6 +69,13 @@ export class LevelOneScene extends Phaser.Scene {
   private requiredClientCount = 0
   private levelCompletionStarted = false
   private exitReady = false
+  private exitRetryRequiresLeave = false
+  private finalProgressSave?: Promise<boolean>
+  private finalClientScore?: {
+    client: ClientDefinition
+    leadScore: number
+    relationshipState: 'cold' | 'warm' | 'qualified'
+  }
   private exitArrow?: Phaser.GameObjects.Container
   private managerConversationHistory: Array<{
     speaker: 'manager' | 'player'
@@ -227,7 +234,7 @@ export class LevelOneScene extends Phaser.Scene {
 
     this.updateMovement()
     this.updateCharacterDepths()
-    this.checkForLevelExit()
+    void this.checkForLevelExit()
   }
 
   private configureClickToMove(): void {
@@ -1193,18 +1200,16 @@ export class LevelOneScene extends Phaser.Scene {
     this.managerPanel = undefined
   }
 
-    // Level 1 scores every client, but the level only finishes once all required
+  // Level 1 scores every client, but the level only finishes once all required
   // clients are done, so only that final call completes the stage.
   private async reportClientScore(
     client: ClientDefinition,
     leadScore: number,
-    relationshipState: 'cold' | 'warm' | 'qualified'
-  ): Promise<void> {
+    relationshipState: 'cold' | 'warm' | 'qualified',
+    completesStage = false
+  ): Promise<boolean> {
     const personaKey = client.personaId ? clientKeyFromPersonaId(client.personaId) : null
-    if (!personaKey) return
-
-    const finishesLevel =
-      !this.levelCompletionStarted && this.completedClientNames.size >= this.requiredClientCount
+    if (!personaKey) return false
 
     try {
       const result = await recordStageCompletion({
@@ -1212,12 +1217,14 @@ export class LevelOneScene extends Phaser.Scene {
         personaKey,
         performance: relationshipState === 'qualified' ? 'strong' : 'developing',
         metrics: { leadScore },
-        completesStage: finishesLevel,
+        completesStage,
       })
 
       if (!result.success) console.error('Could not save the Level 1 score:', result.error)
+      return result.success
     } catch (error) {
       console.error('Could not save the Level 1 score:', error)
+      return false
     }
   }
 
@@ -1227,7 +1234,15 @@ export class LevelOneScene extends Phaser.Scene {
     const relationshipState: 'cold' | 'warm' | 'qualified' =
       leadScore >= 75 ? 'qualified' : leadScore >= 45 ? 'warm' : 'cold'
     this.completedClientNames.add(client.name)
-    void this.reportClientScore(client, leadScore, relationshipState)
+    if (
+      !this.levelCompletionStarted &&
+      this.completedClientNames.size >= this.requiredClientCount
+    ) {
+      this.finalClientScore = { client, leadScore, relationshipState }
+      this.finalProgressSave = this.reportClientScore(client, leadScore, relationshipState, true)
+    } else {
+      void this.reportClientScore(client, leadScore, relationshipState)
+    }
     const user = getClientAuth().currentUser
     if (user && client.personaId) {
       const sessionRef = doc(getSessionsCollection(), `${user.uid}_${client.personaId}_level1`)
@@ -1436,18 +1451,51 @@ export class LevelOneScene extends Phaser.Scene {
     this.exitReady = true
   }
 
-  private checkForLevelExit(): void {
-    if (!this.exitReady) return
-
+  private async checkForLevelExit(): Promise<void> {
     const body = this.player.body as Phaser.Physics.Arcade.Body
     const withinElevator =
       this.player.x >= WORLD_WIDTH / 2 - 185 && this.player.x <= WORLD_WIDTH / 2 + 185
+
+    if (this.exitRetryRequiresLeave) {
+      if (!withinElevator || body.bottom < FLOOR_BOTTOM - 4) {
+        this.exitRetryRequiresLeave = false
+        this.exitReady = true
+      }
+      return
+    }
+    if (!this.exitReady) return
 
     if (!withinElevator || body.bottom < FLOOR_BOTTOM - 4) return
 
     this.exitReady = false
     this.controlsEnabled = false
     this.player.setVelocity(0)
+
+    let saved = await this.finalProgressSave
+    if (!saved && this.finalClientScore) {
+      const { client, leadScore, relationshipState } = this.finalClientScore
+      saved = await this.reportClientScore(client, leadScore, relationshipState, true)
+    }
+    if (!saved) {
+      this.exitRetryRequiresLeave = true
+      this.controlsEnabled = true
+      this.add
+        .text(
+          WORLD_WIDTH / 2,
+          FLOOR_BOTTOM - 90,
+          'Progress could not be saved. Return to the elevator to retry.',
+          {
+            fontFamily: 'Arial',
+            fontSize: '18px',
+            color: '#ffffff',
+            backgroundColor: '#8c392f',
+            padding: { x: 12, y: 8 },
+          }
+        )
+        .setOrigin(0.5)
+        .setDepth(9000)
+      return
+    }
 
     window.localStorage.setItem(LEVEL_ONE_COMPLETION_KEY, 'true')
     window.localStorage.setItem('ibm-level-one-unlocked', 'true')
