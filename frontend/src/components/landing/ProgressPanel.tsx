@@ -21,7 +21,7 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
       aria-label="Consultant progress"
     >
       <section className="game-progress-panel border-charcoal bg-cloud-white rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
-        <h2 className="text-dark-blue text-lg font-extrabold">Level {progress.level}</h2>
+        <h2 className="text-dark-blue text-lg font-extrabold">Your Score</h2>
 
         <div
           className="bg-warm-grey border-charcoal mt-3 h-3 overflow-hidden rounded-full border-[2px]"
