@@ -34,6 +34,54 @@ const resultSchema = z.object({
 })
 type Result = z.infer<typeof resultSchema>
 const blankTerms: ContractTerms = { scope: '', investment: '', startDate: '', paymentTerms: '' }
+
+// Demo build: the contract terms and each final-concern answer arrive
+// pre-written per client, so the player only has to review and press send.
+// Everything stays editable, same as the rest of the demo.
+function twoWeeksFromNow(): string {
+  const date = new Date()
+  date.setDate(date.getDate() + 14)
+  return date.toISOString().slice(0, 10)
+}
+
+const CONTRACT_DRAFTS: Partial<Record<PersonaKey, ContractTerms>> = {
+  sarah: {
+    scope:
+      "Phase one connects ACMD's existing inventory, order and logistics systems into a single live visibility dashboard, with no replacement of any current system — the same scope agreed in the proposal, delivered over six weeks with a review checkpoint along the way.",
+    investment: '$25,000 AUD, fixed price for phase one',
+    startDate: twoWeeksFromNow(),
+    paymentTerms: '50% on signing, 50% on delivery of the phase one dashboard.',
+  },
+  david: {
+    scope:
+      "Phase one unifies Meridian's store, online, mobile and loyalty customer data into one reliable view, delivered alongside your internal technology team rather than replacing their work — the same scope agreed in the proposal, with a working version ready within six weeks.",
+    investment: '$30,000 AUD, fixed price for the first phase',
+    startDate: twoWeeksFromNow(),
+    paymentTerms: '50% on signing, 50% on delivery of the unified customer view.',
+  },
+}
+
+function createPrefilledTerms(personaKey: PersonaKey): ContractTerms {
+  return CONTRACT_DRAFTS[personaKey] ?? { ...blankTerms }
+}
+
+// Round 1 is always about price/budget and round 2 about risk/sign-off (the
+// backend prompt guarantees this), so one fixed answer per round works
+// regardless of the exact wording the client's AI reply comes back with.
+const CONCERN_ANSWERS: Partial<Record<PersonaKey, readonly [string, string]>> = {
+  sarah: [
+    "The fixed price covers phase one only, and reducing delivery delays should pay this back within about a year. We'll also review results with you at the six-week mark before any further investment, so you are not committing beyond phase one today.",
+    'You and your finance lead can sign off this week. The contract includes a review checkpoint at six weeks, and if timelines slip, the second payment moves with the delivery date rather than being due upfront.',
+  ],
+  david: [
+    'This fixed price covers the first phase only, and a faster, more reliable customer view should start showing value well within the six-week window. We will check in with you and your team before discussing any further phases.',
+    'You and your technology lead can approve this together this week. The delivery is milestone-based, so the second payment is tied to the working version being delivered, not a fixed date regardless of progress.',
+  ],
+}
+
+function answerFor(personaKey: PersonaKey, round: number): string {
+  return CONCERN_ANSWERS[personaKey]?.[round - 1] ?? ''
+}
 const subscribe = (changed: () => void) => {
   window.addEventListener('storage', changed)
   return () => window.removeEventListener('storage', changed)
@@ -146,7 +194,7 @@ export function ClosingPortal({
 }
 
 function ClosingWorkspace({ persona }: { persona: ProposalPersona }) {
-  const [terms, setTerms] = useState<ContractTerms>({ ...blankTerms })
+  const [terms, setTerms] = useState<ContractTerms>(() => createPrefilledTerms(persona.key))
   const [step, setStep] = useState<
     'terms' | 'review' | 'concerns' | 'result' | 'signature' | 'celebration'
   >('terms')
@@ -189,7 +237,7 @@ function ClosingWorkspace({ persona }: { persona: ProposalPersona }) {
         throw new Error('The response was incomplete. Please try again.')
       setExchanges(history)
       setConcern(data.concern)
-      setAnswer('')
+      setAnswer(answerFor(persona.key, data.round))
       setStep('concerns')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The client could not respond. Please try again.')
