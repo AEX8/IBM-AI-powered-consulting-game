@@ -8,16 +8,10 @@ import { FullPageSpinner, LoadingSpinner } from '@/components/shared/LoadingSpin
 import { useAuth } from '@/hooks/useAuth'
 import { authPrimaryButtonClassName } from '@/components/auth/authStyles'
 
-// Fixed demo account for the showcase event — no typing, no clicking. This
-// account only ever exists in the isolated demo Firebase project and holds
-// no real data. Must match scripts/seed-demo-account.js exactly.
-const DEMO_EMAIL = 'demo@team9-showcase.dev'
-const DEMO_PASSWORD = 'IbmDemo2026!'
-
 export default function SignInPage() {
   const router = useRouter()
   const signingIn = useRef(false)
-  const { user, loading, signInWithEmail } = useAuth()
+  const { user, loading, signInAsGuest } = useAuth()
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
 
@@ -32,10 +26,11 @@ export default function SignInPage() {
   }, [loading, user, router])
 
   /*
-   * Demo build: the moment this page is ready, sign in with the fixed demo
-   * account automatically. Nobody at the event should have to type or click
-   * anything to get in. `attempt` exists only so the "Try again" button below
-   * can force this to run again after a failure.
+   * Demo build: the moment this page is ready, create a fresh guest account
+   * for this browser/device automatically. Nobody at the event should have to
+   * type or click anything to get in, and each visitor gets their own isolated
+   * progress instead of sharing one save file. `attempt` exists only so the
+   * "Try again" button below can force this to run again after a failure.
    */
   useEffect(() => {
     if (loading || user || signingIn.current) return
@@ -43,7 +38,7 @@ export default function SignInPage() {
     signingIn.current = true
     setError('')
 
-    signInWithEmail(DEMO_EMAIL, DEMO_PASSWORD)
+    signInAsGuest()
       .then(() => {
         router.replace('/dashboard?arrival=signin')
         router.refresh()
@@ -52,7 +47,7 @@ export default function SignInPage() {
         signingIn.current = false
         setError('Could not sign in automatically.')
       })
-  }, [loading, user, signInWithEmail, router, attempt])
+  }, [loading, user, signInAsGuest, router, attempt])
 
   function retry() {
     signingIn.current = false

@@ -8,6 +8,7 @@ import {
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
   signInWithGoogle as fbSignInWithGoogle,
+  signInAsGuest as fbSignInAsGuest,
   signOut as fbSignOut,
   getIdToken,
 } from '@/lib/firebase/auth'
@@ -84,9 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(getClientAuth(), async (firebaseUser) => {
       if (firebaseUser) {
-        // Treat unverified users as unauthenticated so they cannot access
-        // protected routes or receive a session cookie before verifying.
-        if (!firebaseUser.emailVerified) {
+        // Treat unverified email/password users as unauthenticated so they cannot
+        // access protected routes before verifying. Anonymous guest accounts have
+        // no email to verify, so they skip this check entirely.
+        if (!firebaseUser.isAnonymous && !firebaseUser.emailVerified) {
           setUser(null)
           setProfile(null)
           setLoading(false)
@@ -122,6 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setSessionCookie()
   }
 
+  const signInAsGuest = async () => {
+    await fbSignInAsGuest()
+    await setSessionCookie()
+  }
+
   const signOut = async () => {
     // Clear server session cookie first so proxy no longer treats the user as authenticated.
     await clearSessionCookie()
@@ -139,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithEmail,
         signUpWithEmail,
         signInWithGoogle,
+        signInAsGuest,
         signOut,
       }}
     >
