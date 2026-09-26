@@ -886,11 +886,10 @@ export class LevelTwoScene extends Phaser.Scene {
     const panel = this.add
       .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2 + 10, 1180, 550, 0xffffff)
       .setStrokeStyle(5, 0x78a9ff)
-    // Keep the title strip inside the cream results panel instead of letting it
-    // overlap the outer frame at the top of the screen.
-    const header = this.add.rectangle(WORLD_WIDTH / 2, 128, 1100, 58, 0xd0e2ff)
+    // Align the title strip with the two cards and leave a clear gap below it.
+    const header = this.add.rectangle(692.5, 128, 1035, 58, 0xd0e2ff).setStrokeStyle(3, 0x001d6c)
     const headerText = this.add
-      .text(WORLD_WIDTH / 2, 128, 'MISSION RESULTS', {
+      .text(692.5, 128, 'MISSION RESULTS', {
         fontFamily: 'Arial',
         fontSize: '27px',
         color: '#111111',
@@ -898,22 +897,22 @@ export class LevelTwoScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    const scoreCard = this.add.rectangle(370, 375, 390, 440, 0xe7f0f6).setStrokeStyle(5, 0x2c2c2a)
+    const scoreCard = this.add.rectangle(370, 405, 390, 370, 0xedf5ff).setStrokeStyle(5, 0x002d9c)
     const stageBadge = this.add
-      .text(370, 190, 'LEVEL 2  •  OUTREACH', {
+      .text(370, 250, 'LEVEL 2  •  OUTREACH', {
         fontFamily: 'Arial',
         fontSize: '17px',
-        color: '#ffffff',
+        color: '#001d6c',
         fontStyle: 'bold',
-        backgroundColor: '#1f4f78',
+        backgroundColor: '#d0e2ff',
         padding: { x: 18, y: 9 },
       })
       .setOrigin(0.5)
     const scoreRing = this.add
-      .circle(370, 330, 105, score === null ? 0xd9d9d9 : 0xfff3cf)
+      .circle(370, 365, 93, score === null ? 0xd9d9d9 : 0xedf5ff)
       .setStrokeStyle(9, score === null ? 0x777777 : 0x78a9ff)
     const scoreText = this.add
-      .text(370, 330, score === null ? 'N/A' : `${score}/6`, {
+      .text(370, 365, score === null ? 'N/A' : `${score}/6`, {
         fontFamily: 'Arial',
         fontSize: '55px',
         color: '#1f4f78',
@@ -950,19 +949,19 @@ export class LevelTwoScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     const feedbackCard = this.add
-      .rectangle(900, 350, 620, 390, 0xffffff)
-      .setStrokeStyle(5, 0x2c2c2a)
+      .rectangle(900, 385, 620, 330, 0xffffff)
+      .setStrokeStyle(5, 0x002d9c)
     const feedbackLabel = this.add
-      .text(620, 178, score === null ? 'SYSTEM UPDATE' : 'COACH FEEDBACK', {
+      .text(620, 245, score === null ? 'SYSTEM UPDATE' : 'COACH FEEDBACK', {
         fontFamily: 'Arial',
         fontSize: '18px',
-        color: '#ffffff',
+        color: '#001d6c',
         fontStyle: 'bold',
         backgroundColor: score === null ? '#e0e0e0' : '#d0e2ff',
         padding: { x: 16, y: 8 },
       })
       .setOrigin(0, 0.5)
-    const feedbackText = this.add.text(625, 238, feedback, {
+    const feedbackText = this.add.text(625, 280, feedback, {
       fontFamily: 'Arial',
       fontSize: '21px',
       color: '#222222',
@@ -972,7 +971,7 @@ export class LevelTwoScene extends Phaser.Scene {
     const objective = this.add
       .text(
         900,
-        500,
+        520,
         score === null
           ? 'No score was recorded. Retry when grading is available.'
           : passed
