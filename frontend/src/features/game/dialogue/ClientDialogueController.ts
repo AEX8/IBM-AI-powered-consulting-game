@@ -9,20 +9,37 @@ import {
   SUGGESTED_CLOSING_REPLY,
 } from './conversationCompletion'
 
+export type ClientScriptedTurn = {
+  clientMessage: string
+  playerReply: string
+}
+
 export type ClientDefinition = {
   name: string
   texture: string
   personaId?: string
-  responseMode: 'llm' | 'hardcoded'
+  responseMode: 'llm' | 'hardcoded' | 'scripted'
   hardcodedReply?: string
   hardcodedReplies?: readonly string[]
+  scriptedTurns?: readonly ClientScriptedTurn[]
   sprite: Phaser.GameObjects.Image
 }
+
+// Demo build: a scripted conversation always finishes at full marks, since
+// there is no real coverage to measure without an AI call.
+const FULL_MARKS_INFO_POINTS = [
+  'demo-point-1',
+  'demo-point-2',
+  'demo-point-3',
+  'demo-point-4',
+  'demo-point-5',
+  'demo-point-6',
+  'demo-point-7',
+]
 
 type ClientDialogueControllerOptions = {
   scene: Phaser.Scene
   player: Phaser.Physics.Arcade.Image
-  clients: ClientDefinition[]
   effects: LevelOneEffects
   mainCamera: Phaser.Cameras.Scene2D.Camera
   interfaceCamera: Phaser.Cameras.Scene2D.Camera
@@ -33,12 +50,9 @@ type ClientDialogueControllerOptions = {
   onClientCompleted: (client: ClientDefinition, coveredInfoPoints: string[]) => void
 }
 
-const INTERACTION_DISTANCE = 185
-
 export class ClientDialogueController {
   private readonly scene: Phaser.Scene
   private readonly player: Phaser.Physics.Arcade.Image
-  private readonly clients: ClientDefinition[]
   private readonly effects: LevelOneEffects
 
   private readonly mainCamera: Phaser.Cameras.Scene2D.Camera
@@ -53,9 +67,6 @@ export class ClientDialogueController {
     client: ClientDefinition,
     coveredInfoPoints: string[]
   ) => void
-  private readonly interactionKey: Phaser.Input.Keyboard.Key
-  private readonly proximityPrompt: Phaser.GameObjects.Container
-
   private activeClient?: ClientDefinition
   private panel?: Phaser.GameObjects.Container
   private replyInput?: Phaser.GameObjects.DOMElement
@@ -67,7 +78,6 @@ export class ClientDialogueController {
   constructor({
     scene,
     player,
-    clients,
     effects,
     mainCamera,
     interfaceCamera,
@@ -79,7 +89,6 @@ export class ClientDialogueController {
   }: ClientDialogueControllerOptions) {
     this.scene = scene
     this.player = player
-    this.clients = clients
     this.effects = effects
 
     this.mainCamera = mainCamera
@@ -91,47 +100,14 @@ export class ClientDialogueController {
     this.onOpen = onOpen
     this.onClose = onClose
     this.onClientCompleted = onClientCompleted
-
-    const keyboard = this.scene.input.keyboard
-
-    if (!keyboard) {
-      throw new Error('Keyboard input is unavailable for client interaction.')
-    }
-
-    this.interactionKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
-
-    this.proximityPrompt = this.createProximityPrompt()
-
-    this.interfaceCamera.ignore(this.proximityPrompt)
   }
 
-  update(): void {
-    if (this.panel || this.replyInput) {
-      this.hidePrompt()
-      return
-    }
-
-    const closestClient = this.findClosestClient()
-
-    if (!closestClient) {
-      this.activeClient = undefined
-      this.hidePrompt()
-      return
-    }
-
-    this.activeClient = closestClient
-
-    this.proximityPrompt
-      .setPosition(closestClient.sprite.x, closestClient.sprite.y - 125)
-      .setVisible(true)
-
-    if (Phaser.Input.Keyboard.JustDown(this.interactionKey)) {
-      this.openDialogue(closestClient)
-    }
-  }
-
-  hidePrompt(): void {
-    this.proximityPrompt.setVisible(false)
+  /** Opens this client's dialogue directly — called once a click-to-move walk
+   * has brought the player to them. Demo build: no proximity or E-key prompt. */
+  openDialogueFor(client: ClientDefinition): void {
+    if (this.panel) return
+    this.activeClient = client
+    this.openDialogue(client)
   }
 
   destroy(): void {
@@ -139,7 +115,6 @@ export class ClientDialogueController {
     this.dialogueLog?.destroy()
     this.hintCard?.destroy()
     this.panel?.destroy(true)
-    this.proximityPrompt.destroy(true)
 
     this.replyInput = undefined
     this.dialogueLog = undefined
@@ -170,67 +145,11 @@ export class ClientDialogueController {
     this.hintCard?.setVisible(visible && this.hintVisibleBeforeTemporaryHide)
   }
 
-  private findClosestClient(): ClientDefinition | undefined {
-    let closestClient: ClientDefinition | undefined
-    let closestDistance = INTERACTION_DISTANCE
-
-    for (const client of this.clients) {
-      const distance = Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
-        client.sprite.x,
-        client.sprite.y
-      )
-
-      if (distance <= closestDistance) {
-        closestClient = client
-        closestDistance = distance
-      }
-    }
-
-    return closestClient
-  }
-
-  private createProximityPrompt(): Phaser.GameObjects.Container {
-    const container = this.scene.add.container(0, 0).setDepth(5200).setVisible(false)
-
-    const background = this.scene.add
-      .rectangle(0, 0, 175, 45, 0x002d9c, 0.96)
-      .setStrokeStyle(3, 0x111111)
-
-    const keyboardKey = this.scene.add
-      .rectangle(-62, 0, 29, 29, 0xf4f7f9)
-      .setStrokeStyle(2, 0x111111)
-
-    const keyText = this.scene.add
-      .text(-62, 0, 'E', {
-        color: '#111111',
-        fontFamily: 'Arial',
-        fontSize: '17px',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-
-    const promptText = this.scene.add
-      .text(18, 0, 'Talk', {
-        color: '#ffffff',
-        fontFamily: 'Arial',
-        fontSize: '18px',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-
-    container.add([background, keyboardKey, keyText, promptText])
-
-    return container
-  }
-
   private openDialogue(client: ClientDefinition): void {
     if (this.panel) {
       return
     }
 
-    this.hidePrompt()
     this.onOpen()
     this.activeConversationCompleted = false
 
@@ -242,7 +161,222 @@ export class ClientDialogueController {
 
     this.effects.showDialogueVignette(this.worldWidth, this.worldHeight, this.mainCamera)
 
-    this.createDialoguePanel(client)
+    if (client.responseMode === 'scripted') {
+      this.createScriptedDialoguePanel(client)
+    } else {
+      this.createDialoguePanel(client)
+    }
+  }
+
+  /**
+   * Demo build: a fixed two-round exchange — client speaks, a reply is already
+   * filled in, Send, repeat once more, then the conversation closes at full
+   * marks. No AI call, no typing. Mirrors the manager's scripted conversation.
+   */
+  private createScriptedDialoguePanel(client: ClientDefinition): void {
+    const turns = client.scriptedTurns ?? []
+
+    if (turns.length === 0) {
+      this.activeConversationCompleted = false
+      this.closeDialogue()
+      return
+    }
+
+    const panelWidth = 470
+    const panelLeft = this.worldWidth - panelWidth - 12
+    const panelX = panelLeft + panelWidth / 2
+
+    const panel = this.scene.add.container(0, 0).setScrollFactor(0).setDepth(6500)
+
+    const panelBody = this.scene.add
+      .rectangle(panelX, this.worldHeight / 2, panelWidth, this.worldHeight - 28, 0xf4f7f9)
+      .setStrokeStyle(4, 0x111111)
+
+    const header = this.scene.add
+      .rectangle(panelX, 66, panelWidth, 90, 0xb98900)
+      .setStrokeStyle(4, 0x111111)
+
+    const title = this.scene.add
+      .text(panelX, 66, client.name, {
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontSize: '27px',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+
+    const dialogueLog = this.scene.add
+      .dom(panelX, 132)
+      .createFromHTML(
+        `<div data-client-scripted-log role="log" aria-live="polite" style="width: 430px; height: ${this.worldHeight - 322}px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; padding: 10px 12px 18px; box-sizing: border-box;"></div>`
+      )
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(6600)
+    const logElement = dialogueLog.node.querySelector<HTMLDivElement>('[data-client-scripted-log]')
+
+    if (!logElement) {
+      dialogueLog.destroy()
+      panel.destroy(true)
+      throw new Error('Client dialogue log could not be created.')
+    }
+
+    const appendMessage = (
+      speaker: 'client' | 'player',
+      message: string,
+      animate = true
+    ): { row: HTMLDivElement; bubble: HTMLDivElement } => {
+      const row = document.createElement('div')
+      row.style.cssText = `display:flex;align-items:flex-start;gap:10px;flex-shrink:0;${speaker === 'player' ? 'flex-direction:row-reverse;' : ''}`
+
+      const avatarFrame = document.createElement('div')
+      avatarFrame.style.cssText =
+        'width:52px;height:52px;flex:0 0 52px;border:3px solid #2c2c2a;border-radius:50%;overflow:hidden;background:#fff;box-sizing:border-box;'
+
+      const avatar = document.createElement('img')
+      avatar.src =
+        speaker === 'player'
+          ? '/assets/characters/npcs/character-03.png'
+          : client.texture === 'good-client'
+            ? '/assets/characters/npcs/character-01.png'
+            : '/assets/characters/npcs/character-02.png'
+      avatar.alt = speaker === 'player' ? 'You' : client.name
+      avatar.style.cssText = 'width:100%;height:100%;object-fit:cover;'
+      avatarFrame.appendChild(avatar)
+
+      const bubble = document.createElement('div')
+      bubble.textContent = message
+      bubble.style.cssText = `width:fit-content;max-width:320px;padding:12px 14px;border:2px solid ${speaker === 'player' ? '#7e9975' : '#a1a7ad'};border-radius:12px;background:${speaker === 'player' ? '#e8f0e5' : '#fff'};color:#2c2c2a;font:16px/1.4 Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:border-box;`
+
+      row.append(avatarFrame, bubble)
+      logElement.appendChild(row)
+
+      if (animate) {
+        row.animate(
+          [
+            { opacity: 0, transform: `translateX(${speaker === 'player' ? '18px' : '-18px'})` },
+            { opacity: 1, transform: 'translateX(0)' },
+          ],
+          { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        )
+      }
+
+      requestAnimationFrame(() => {
+        logElement.scrollTop = logElement.scrollHeight
+      })
+
+      return { row, bubble }
+    }
+
+    let turnIndex = 0
+    const showClientTurn = (): void => {
+      appendMessage('client', turns[turnIndex]!.clientMessage)
+    }
+
+    showClientTurn()
+
+    const replyInput = this.scene.add
+      .dom(panelLeft + 205, this.worldHeight - 67)
+      .createFromHTML(
+        `<textarea name="clientScriptedReply" readonly rows="3" aria-label="Preloaded reply to ${client.name}" style="width:310px;height:76px;box-sizing:border-box;border:2px solid #d8c59e;border-radius:10px;padding:10px 14px;background:#ffffff;color:#2c2c2a;font:16px/1.3 Arial,sans-serif;outline:none;resize:none;overflow-y:auto;cursor:default;white-space:pre-wrap;"></textarea>`
+      )
+      .setScrollFactor(0)
+      .setDepth(6600)
+    const inputElement = replyInput.getChildByName(
+      'clientScriptedReply'
+    ) as HTMLTextAreaElement | null
+
+    if (inputElement) {
+      inputElement.value = turns[turnIndex]!.playerReply
+    }
+
+    const sendX = panelLeft + panelWidth - 47
+    const sendY = this.worldHeight - 67
+    const sendButton = this.scene.add
+      .circle(sendX, sendY, 28, 0xe6e8e9)
+      .setStrokeStyle(4, 0x111111)
+      .setInteractive({ useHandCursor: true })
+    const sendTriangle = this.scene.add.graphics()
+    sendTriangle.fillStyle(0x2c2c2a)
+    sendTriangle.fillTriangle(sendX - 7, sendY - 11, sendX - 7, sendY + 11, sendX + 11, sendY)
+
+    let finishing = false
+    let waitingForClient = false
+    const sendScriptedReply = (): void => {
+      if (finishing || waitingForClient) return
+
+      this.effects.pressButton(sendButton)
+      const reply = turns[turnIndex]!.playerReply
+      appendMessage('player', reply)
+      turnIndex += 1
+
+      if (turnIndex < turns.length) {
+        waitingForClient = true
+        sendButton.disableInteractive()
+        if (inputElement) {
+          inputElement.value = ''
+          inputElement.placeholder = `${client.name} is replying...`
+          inputElement.disabled = true
+        }
+
+        const typingMessage = appendMessage('client', '•••')
+        const typingAnimation = typingMessage.bubble.animate(
+          [{ opacity: 0.35 }, { opacity: 1 }, { opacity: 0.35 }],
+          { duration: 700, iterations: Infinity, easing: 'ease-in-out' }
+        )
+
+        this.scene.time.delayedCall(850, () => {
+          typingAnimation.cancel()
+          typingMessage.row.remove()
+          showClientTurn()
+          waitingForClient = false
+          sendButton.setInteractive({ useHandCursor: true })
+
+          if (inputElement) {
+            inputElement.disabled = false
+            inputElement.placeholder = ''
+            inputElement.value = turns[turnIndex]!.playerReply
+            inputElement.scrollTop = 0
+          }
+        })
+        return
+      }
+
+      finishing = true
+      if (inputElement) {
+        inputElement.value = ''
+        inputElement.placeholder = 'Conversation complete'
+        inputElement.disabled = true
+      }
+      sendButton.disableInteractive()
+
+      this.activeConversationCompleted = true
+
+      // Leave the final player bubble on screen briefly before closing, same
+      // beat as the manager conversation.
+      this.scene.time.delayedCall(750, () => {
+        this.closeDialogue(FULL_MARKS_INFO_POINTS)
+      })
+    }
+
+    sendButton.on('pointerdown', sendScriptedReply)
+    inputElement?.addEventListener('keydown', (event) => {
+      event.stopPropagation()
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        sendScriptedReply()
+      }
+    })
+
+    panel.add([panelBody, header, title, sendButton, sendTriangle])
+    this.mainCamera.ignore([panel, replyInput, dialogueLog])
+
+    this.panel = panel
+    this.replyInput = replyInput
+    this.dialogueLog = dialogueLog
+
+    this.effects.animatePanel(panel)
+    this.effects.addButtonHover(sendButton)
   }
 
   private createDialoguePanel(client: ClientDefinition): void {
@@ -253,16 +387,16 @@ export class ClientDialogueController {
     const panel = this.scene.add.container(0, 0).setScrollFactor(0).setDepth(6500)
 
     const panelBody = this.scene.add
-      .rectangle(panelX, this.worldHeight / 2, panelWidth, this.worldHeight - 28, 0xffffff)
+      .rectangle(panelX, this.worldHeight / 2, panelWidth, this.worldHeight - 28, 0xf4f7f9)
       .setStrokeStyle(4, 0x111111)
 
     const header = this.scene.add
-      .rectangle(panelX, 66, panelWidth, 90, 0xd0e2ff)
+      .rectangle(panelX, 66, panelWidth, 90, 0xb98900)
       .setStrokeStyle(4, 0x111111)
 
     const title = this.scene.add
       .text(panelX, 66, client.name, {
-        color: '#002d9c',
+        color: '#111111',
         fontFamily: 'Arial',
         fontSize: '27px',
         fontStyle: 'bold',
@@ -291,7 +425,7 @@ export class ClientDialogueController {
 
       const avatarFrame = document.createElement('div')
       avatarFrame.style.cssText =
-        'width:52px;height:52px;flex:0 0 52px;border:3px solid #002d9c;border-radius:50%;overflow:hidden;background:#fff;box-sizing:border-box;'
+        'width:52px;height:52px;flex:0 0 52px;border:3px solid #2c2c2a;border-radius:50%;overflow:hidden;background:#fff;box-sizing:border-box;'
 
       const avatar = document.createElement('img')
       avatar.src =
@@ -306,7 +440,7 @@ export class ClientDialogueController {
 
       const bubble = document.createElement('div')
       bubble.textContent = message
-      bubble.style.cssText = `width:fit-content;max-width:320px;padding:12px 14px;border:2px solid ${speaker === 'player' ? '#002d9c' : '#a6c8ff'};border-radius:12px;background:${speaker === 'player' ? '#edf5ff' : '#fff'};color:#161616;font:16px/1.4 Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:border-box;`
+      bubble.style.cssText = `width:fit-content;max-width:320px;padding:12px 14px;border:2px solid ${speaker === 'player' ? '#7e9975' : '#a1a7ad'};border-radius:12px;background:${speaker === 'player' ? '#e8f0e5' : '#fff'};color:#2c2c2a;font:16px/1.4 Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:border-box;`
 
       row.append(avatarFrame, bubble)
       logElement.appendChild(row)
@@ -330,7 +464,7 @@ export class ClientDialogueController {
               width: 310px;
               height: 54px;
               box-sizing: border-box;
-              border: 2px solid #a6c8ff;
+              border: 2px solid #d8c59e;
               border-radius: 10px;
               padding: 0 14px;
               background: #ffffff;
@@ -361,7 +495,7 @@ export class ClientDialogueController {
     const hintCard = this.scene.add
       .dom(panelLeft + 205, this.worldHeight - 139)
       .createFromHTML(
-        `<div data-client-hint style="width:310px;min-height:42px;display:flex;align-items:center;gap:8px;padding:7px 12px;box-sizing:border-box;border:2px solid #a6c8ff;border-radius:10px;background:#edf5ff;color:#002d9c;font:700 14px/1.25 Arial,sans-serif;box-shadow:3px 3px 0 rgba(0,45,156,.16);pointer-events:none;"><span aria-hidden="true" style="font-size:18px;">💡</span><span data-client-hint-text></span></div>`
+        `<div data-client-hint style="width:310px;min-height:42px;display:flex;align-items:center;gap:8px;padding:7px 12px;box-sizing:border-box;border:2px solid #d8c59e;border-radius:10px;background:#fff4d6;color:#1f4f78;font:700 14px/1.25 Arial,sans-serif;box-shadow:3px 3px 0 rgba(44,44,42,.2);pointer-events:none;"><span aria-hidden="true" style="font-size:18px;">💡</span><span data-client-hint-text></span></div>`
       )
       .setScrollFactor(0)
       .setDepth(6590)
@@ -397,7 +531,7 @@ export class ClientDialogueController {
     const sendY = this.worldHeight - 78
 
     const sendButton = this.scene.add
-      .circle(sendX, sendY, 28, 0x002d9c)
+      .circle(sendX, sendY, 28, 0xe6e8e9)
       .setStrokeStyle(4, 0x111111)
       .setInteractive({
         useHandCursor: true,
@@ -405,7 +539,7 @@ export class ClientDialogueController {
 
     const sendTriangle = this.scene.add.graphics()
 
-    sendTriangle.fillStyle(0xffffff)
+    sendTriangle.fillStyle(0x2c2c2a)
 
     sendTriangle.fillTriangle(sendX - 7, sendY - 11, sendX - 7, sendY + 11, sendX + 11, sendY)
 
