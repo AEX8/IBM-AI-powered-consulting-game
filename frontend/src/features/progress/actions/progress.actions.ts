@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/actions/auth.actions'
 import type { ActionResult } from '@/types'
 import type { StageCompletionReward } from '../progress'
+import { getCompletedClientKeys } from '../queries'
 import { saveStageCompletion } from '../server'
 
 const skillDelta = z.number().int().min(0).max(3).optional()
@@ -44,4 +45,12 @@ export async function recordStageCompletion(
   } catch {
     return { success: false, error: 'Failed to save progress' }
   }
+}
+
+// Lets a client component check, right after saving a stage result, which clients
+// the player has now fully completed a given stage with (e.g. to decide whether
+// to ask for a meeting order once both clients are prepared).
+export async function getCompletedClientKeysAction(stageId: number): Promise<string[]> {
+  const session = await requireAuth()
+  return getCompletedClientKeys(session.uid, stageId)
 }

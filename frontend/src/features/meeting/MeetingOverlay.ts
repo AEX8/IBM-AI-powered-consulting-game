@@ -37,6 +37,10 @@ export type MeetingOverlayClient = {
 export type MeetingOverlayOptions = {
   client: MeetingOverlayClient
   getPrep: () => MeetingPrepContext | undefined
+  // Fires once, the moment scoring comes back as a pass — before the player
+  // clicks any button. The scene uses this to know a meeting is truly done,
+  // regardless of which exit button (or none) the player ends up using.
+  onPassed?: () => void
   onClose: () => void
 }
 
@@ -376,6 +380,7 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
 
       result = parsed
       mode = 'feedback'
+      if (parsed.passed) options.onPassed?.()
     } catch (error) {
       if (destroyed) return
 

@@ -46,9 +46,13 @@ const defaultGradePreparation: GradePreparation = async ({ personaId, objectives
 export function LevelTwoGame({
   preparation = false,
   gradePreparation = defaultGradePreparation,
+  availableClientKeys = [],
 }: {
   preparation?: boolean
   gradePreparation?: GradePreparation
+  // Client keys (e.g. 'sarah') the player has completed Outreach with — only
+  // these can be selected for meeting preparation. Ignored outside Level 3.
+  availableClientKeys?: string[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<Phaser.Game | undefined>(undefined)
@@ -149,6 +153,7 @@ export function LevelTwoGame({
       {preparation && preparationOpen && (
         <PreparationPanel
           gradePreparation={gradePreparation}
+          availableClientKeys={availableClientKeys}
           onClose={() => {
             setPreparationOpen(false)
             gameRef.current?.events.emit('preparation:close')
