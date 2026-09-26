@@ -13,7 +13,7 @@ const confetti = Array.from({ length: 42 }, (_, index) => ({
   left: `${(index * 37) % 100}%`,
   delay: (index % 9) * 0.08,
   duration: 2.2 + (index % 5) * 0.22,
-  colour: ['#c98a3e', '#1f4e79', '#7eb6e0', '#5b8c4a', '#f4ede1'][index % 5],
+  colour: ['#002d9c', '#002d9c', '#a6c8ff', '#d0e2ff', '#ffffff'][index % 5],
 }))
 
 export default function LevelCompletionCelebration({
@@ -42,7 +42,7 @@ export default function LevelCompletionCelebration({
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="pointer-events-none fixed inset-0 z-[100] overflow-hidden bg-indigo-950/35"
+          className="pointer-events-none fixed inset-0 z-[100] overflow-hidden bg-[#001d6c]/35"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -87,7 +87,7 @@ export default function LevelCompletionCelebration({
               transition={{ duration: 0.8, ease: 'backOut' }}
             >
               <motion.div
-                className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#2c2c2a] bg-[#c98a3e] text-5xl shadow-[5px_5px_0_#2c2c2a]"
+                className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#161616] bg-[#78a9ff] text-5xl shadow-[5px_5px_0_#161616]"
                 animate={{
                   rotate: [0, -8, 8, -5, 5, 0],
                   scale: [1, 1.15, 1],
@@ -102,13 +102,19 @@ export default function LevelCompletionCelebration({
               </p>
 
               <h2 className="text-charcoal mt-2 text-4xl font-extrabold sm:text-5xl">
-                {completedLevel === 1 ? 'Outreach unlocked!' : completedLevel === 2 ? 'Meeting preparation unlocked!' : 'Client meeting unlocked!'}
+                {completedLevel === 1
+                  ? 'Outreach unlocked!'
+                  : completedLevel === 2
+                    ? 'Meeting preparation unlocked!'
+                    : 'Client meeting unlocked!'}
               </h2>
 
               <p className="text-charcoal mt-4 text-lg font-semibold">
                 {completedLevel === 1
                   ? 'You found your first potential leads. Level 2 is now ready.'
-                  : completedLevel === 2 ? 'Your outreach is complete. Level 3 is now ready.' : 'Your preparation is saved. Level 4 is now ready.'}
+                  : completedLevel === 2
+                    ? 'Your outreach is complete. Level 3 is now ready.'
+                    : 'Your preparation is saved. Level 4 is now ready.'}
               </p>
 
               <motion.div
