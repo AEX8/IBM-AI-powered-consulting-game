@@ -1,5 +1,6 @@
 .portal {
   height: 100dvh;
+  background: #fff;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -48,7 +49,7 @@
 }
 .sidebar {
   padding: 36px 24px 110px;
-  background: var(--warm-grey, #eee9e1);
+  background: var(--warm-grey, #e0e0e0);
   border-right: 1px solid #2c2c2a15;
   font-size: 14px;
 }
@@ -208,7 +209,7 @@
   text-decoration: none;
 }
 .primary {
-  background: var(--plant-green, #5b8c4a);
+  background: var(--plant-green, #002d9c);
   color: white;
   border: 2px solid transparent;
 }
@@ -265,7 +266,7 @@
 }
 .card blockquote {
   background: var(--warm-cream, #f4ede1);
-  border-left: 4px solid var(--honey-wood, #c98a3e);
+  border-left: 4px solid var(--honey-wood, #a6c8ff);
   padding: 22px;
   margin: 24px 0;
   border-radius: 0 10px 10px 0;
@@ -295,7 +296,7 @@
   margin: 14px 0 14px auto;
   padding: 16px 20px;
   border-radius: 10px 0 10px 10px;
-  background: #e7f0e0;
+  background: #edf5ff;
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -345,8 +346,8 @@
   width: 70px;
   height: 70px;
   border-radius: 50%;
-  background: #e7f0e0;
-  color: var(--plant-green, #5b8c4a);
+  background: #edf5ff;
+  color: var(--plant-green, #002d9c);
   margin: 0 auto 18px;
 }
 .total {
@@ -424,17 +425,17 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: #173b5bcc;
+  background: #edf5ffdd;
 }
 .signaturePrompt,
 .replayPrompt {
   width: min(100%, 680px);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
-  border: 5px solid var(--charcoal, #2c2c2a);
+  border: 5px solid #a6c8ff;
   border-radius: 18px;
   background: var(--warm-cream, #f4ede1);
-  box-shadow: 8px 8px 0 #172c3d;
+  box-shadow: 8px 8px 0 #d0e2ff;
   padding: clamp(20px, 4vw, 36px);
 }
 .signaturePrompt h1,
@@ -480,24 +481,24 @@
   place-items: center;
   overflow: hidden;
   padding: 22px;
-  background: radial-gradient(circle at 50% 35%, #386283, #173b5b 70%);
+  background: radial-gradient(circle at 50% 35%, #ffffff, #edf5ff 70%);
 }
 .completionCard {
   position: relative;
   z-index: 1;
   width: min(100%, 700px);
   padding: clamp(28px, 6vw, 60px);
-  border: 6px solid var(--charcoal, #2c2c2a);
+  border: 6px solid #a6c8ff;
   border-radius: 22px;
   background: var(--warm-cream, #f4ede1);
-  box-shadow: 10px 10px 0 var(--honey-wood, #c98a3e);
+  box-shadow: 10px 10px 0 var(--honey-wood, #a6c8ff);
   text-align: center;
   animation: appear 650ms ease-out both;
 }
 .completionTrophy {
   display: block;
   margin: 20px auto;
-  color: var(--honey-wood, #c98a3e);
+  color: var(--honey-wood, #a6c8ff);
   animation: victory 1.8s ease-in-out infinite;
 }
 .completionCard h1 {
@@ -522,17 +523,17 @@
   top: -10%;
   width: 12px;
   height: 22px;
-  background: var(--honey-wood, #c98a3e);
+  background: var(--honey-wood, #a6c8ff);
   animation: confettiFall 3.2s linear infinite;
 }
 .confetti span:nth-child(3n) {
-  background: #a5c85d;
+  background: #002d9c;
 }
 .confetti span:nth-child(4n) {
-  background: #80bddb;
+  background: #a6c8ff;
 }
 .confetti span:nth-child(5n) {
-  background: #f6d98c;
+  background: #ffffff;
 }
 @keyframes confettiFall {
   to {

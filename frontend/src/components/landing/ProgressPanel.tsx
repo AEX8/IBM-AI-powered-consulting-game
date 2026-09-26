@@ -1,4 +1,5 @@
 import type { ConsultantProgress } from '@/features/progress/progress'
+import BadgeGallery from './BadgeGallery'
 
 type ProgressPanelProps = {
   progress: ConsultantProgress
@@ -81,20 +82,10 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
 
             <dd className="text-dark-blue font-extrabold">{progress.totalXp}</dd>
           </div>
-
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-charcoal flex items-center gap-2">
-              <span
-                className="border-charcoal bg-plant-green h-3 w-3 shrink-0 rounded-full border-2"
-                aria-hidden="true"
-              />
-              Badges
-            </dt>
-
-            <dd className="text-dark-blue font-extrabold">{progress.badgesCollected}</dd>
-          </div>
         </dl>
-
+        <div className="mt-2 text-xs">
+          <BadgeGallery progress={progress} />
+        </div>
       </section>
     </aside>
   )

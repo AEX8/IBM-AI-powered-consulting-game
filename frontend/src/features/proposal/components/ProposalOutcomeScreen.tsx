@@ -108,11 +108,11 @@ export function ProposalOutcomeScreen(props: ProposalOutcomeScreenProps) {
     return (
       <div className="flex flex-1 items-center justify-center p-10">
         <div className="border-charcoal/10 w-full max-w-md overflow-hidden rounded-2xl border bg-white text-center shadow-sm">
-          <p className="bg-plant-green px-6 py-3 text-sm font-extrabold tracking-wide text-white uppercase">
+          <p className="bg-[#d0e2ff] px-6 py-3 text-sm font-extrabold tracking-wide text-[#001d6c] uppercase">
             Outcome · accepted
           </p>
           <div className="p-10">
-            <div className="bg-plant-green/15 mx-auto flex h-16 w-16 items-center justify-center rounded-full">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#edf5ff]">
               <span className="text-plant-green text-3xl" aria-hidden="true">
                 ✓
               </span>
