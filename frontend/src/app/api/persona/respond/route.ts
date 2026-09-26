@@ -273,25 +273,29 @@ const systemPromptWithPrep = `${systemPrompt}${meetingPrepContext}`
     }))
 
     // Pass one generates the in-character response from the complete conversation.
-    const response = await callGroq({
-      apiKey,
-      messages: [
-        {
-          role: 'system',
-          content: systemPromptWithPrep,
-        },
-        ...groqHistory,
-        {
-          role: 'user',
-          content: message,
-        },
-      ],
-      // The prompt targets roughly 60 words. Extra token headroom allows the model
-      // to finish its final sentence without encouraging a longer visible reply.
-      maxTokens: 180,
-    })
+    const replyMessages = [
+      {
+        role: 'system' as const,
+        content: systemPromptWithPrep,
+      },
+      ...groqHistory,
+      {
+        role: 'user' as const,
+        content: message,
+      },
+    ]
 
-    const data = await response.json()
+    // The prompt targets roughly 60 words. Extra token headroom allows the model
+    // to finish its final sentence without encouraging a longer visible reply.
+    let response = await callGroq({ apiKey, messages: replyMessages, maxTokens: 180 })
+    let data = await response.json()
+
+    // A single failed call (rate limit, transient 5xx) would otherwise break the
+    // conversation outright, so retry once before surfacing an error.
+    if (!response.ok) {
+      response = await callGroq({ apiKey, messages: replyMessages, maxTokens: 180 })
+      data = await response.json()
+    }
 
     if (!response.ok) {
       return NextResponse.json(

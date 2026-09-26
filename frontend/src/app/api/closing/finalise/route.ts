@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Timestamp } from 'firebase-admin/firestore'
 import { getServerSession } from '@/actions/auth.actions'
 import { adminDb } from '@/lib/firebase/admin'
-import { GroqError, callGroq } from '@/lib/groq'
+import { GroqError, callGroqForJson } from '@/lib/groq'
 import {
   CLOSING_STAGE_ID,
   canStartClosing,
@@ -46,19 +46,18 @@ export async function POST(request: Request) {
       )
     }
 
-    const raw = await callGroq({
+    const { result: assessment, lastRaw } = await callGroqForJson({
       messages: [
         { role: 'system', content: buildFinaliseSystemPrompt(prompts, terms, exchanges) },
         { role: 'user', content: 'Assess how the consultant closed this deal.' },
       ],
       maxTokens: 1000,
       temperature: 0,
+      parse: parseClosingResult,
     })
 
-    const assessment = parseClosingResult(raw)
-
     if (!assessment) {
-      console.error('Closing finalise: could not read the AI response:', raw)
+      console.error('Closing finalise: could not read the AI response:', lastRaw)
       return NextResponse.json({ error: 'The deal could not be assessed.' }, { status: 502 })
     }
 

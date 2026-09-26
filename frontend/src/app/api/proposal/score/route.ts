@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPersonaPrompts } from '@/features/proposal/personaPrompts'
-
-const MODEL = 'openai/gpt-oss-20b'
+import { GroqError, callGroqForJson, extractJsonObject } from '@/lib/groq'
 
 type ProposalScoreRequestBody = {
   personaKey?: unknown
@@ -25,19 +24,31 @@ function timelineLabels(value: unknown): string[] {
     .filter(Boolean)
 }
 
-// Some models (especially reasoning models like gpt-oss) prepend explanatory text
-// or a code fence before the JSON object. Extract the {...} slice directly instead
-// of assuming the whole trimmed string is valid JSON.
-function extractJsonObject(rawContent: string): string | null {
-  const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim()
-  const firstBrace = cleaned.indexOf('{')
-  const lastBrace = cleaned.lastIndexOf('}')
+type ProposalScoreResult = {
+  problem: 0 | 1 | 2
+  value: 0 | 1 | 2
+  fit: 0 | 1 | 2
+  feedback: string
+}
 
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+function parseProposalScore(rawContent: string): ProposalScoreResult | null {
+  const jsonSlice = extractJsonObject(rawContent)
+  if (!jsonSlice) return null
+
+  let parsed: { problem?: unknown; value?: unknown; fit?: unknown; feedback?: unknown }
+
+  try {
+    parsed = JSON.parse(jsonSlice)
+  } catch {
     return null
   }
 
-  return cleaned.slice(firstBrace, lastBrace + 1)
+  return {
+    problem: scoreFieldOrZero(parsed.problem),
+    value: scoreFieldOrZero(parsed.value),
+    fit: scoreFieldOrZero(parsed.fit),
+    feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
+  }
 }
 
 export async function POST(request: Request) {
@@ -57,12 +68,6 @@ export async function POST(request: Request) {
 
     if (!solutionScope.trim()) {
       return NextResponse.json({ error: 'solutionScope is required' }, { status: 400 })
-    }
-
-    const apiKey = process.env.GROQ_API_KEY
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GROQ_API_KEY is not configured' }, { status: 500 })
     }
 
     const gradingPrompt = `
@@ -91,63 +96,30 @@ Return ONLY valid JSON in this format:
 }
 `
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an evaluator for a consulting simulation game. Return only valid JSON.',
-          },
-          { role: 'user', content: gradingPrompt },
-        ],
-        max_tokens: 1000,
-      }),
+    const { result, lastRaw } = await callGroqForJson({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an evaluator for a consulting simulation game. Return only valid JSON.',
+        },
+        { role: 'user', content: gradingPrompt },
+      ],
+      maxTokens: 1000,
+      temperature: 0,
+      parse: parseProposalScore,
     })
 
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text()
-      console.error('Proposal score: Groq API request failed:', errorText)
-      return NextResponse.json({ error: 'Scoring request failed' }, { status: 502 })
-    }
-
-    const data = await groqResponse.json()
-    const rawContent = data?.choices?.[0]?.message?.content
-
-    if (!rawContent || typeof rawContent !== 'string') {
-      console.error('Proposal score: invalid response shape:', data)
-      return NextResponse.json({ error: 'Invalid scoring response' }, { status: 502 })
-    }
-
-    const jsonSlice = extractJsonObject(rawContent)
-
-    if (!jsonSlice) {
-      console.error('Proposal score: no JSON object found in Groq response:', rawContent)
+    if (!result) {
+      console.error('Proposal score: could not read the AI response:', lastRaw)
       return NextResponse.json({ error: 'Could not parse scoring response' }, { status: 502 })
     }
 
-    let parsed: { problem?: unknown; value?: unknown; fit?: unknown; feedback?: unknown }
-
-    try {
-      parsed = JSON.parse(jsonSlice)
-    } catch {
-      console.error('Proposal score: JSON.parse failed on:', jsonSlice)
-      return NextResponse.json({ error: 'Could not parse scoring response' }, { status: 502 })
-    }
-
-    return NextResponse.json({
-      problem: scoreFieldOrZero(parsed.problem),
-      value: scoreFieldOrZero(parsed.value),
-      fit: scoreFieldOrZero(parsed.fit),
-      feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
-    })
+    return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof GroqError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error('Proposal score API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
