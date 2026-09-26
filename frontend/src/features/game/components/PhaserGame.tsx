@@ -2,6 +2,7 @@
 
 import type Phaser from 'phaser'
 import { useEffect, useRef } from 'react'
+import { LevelNavigationControls } from './LevelNavigationControls'
 
 const GAME_WIDTH = 1440
 const GAME_HEIGHT = 720
@@ -28,7 +29,7 @@ export function PhaserGame() {
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
 
-        backgroundColor: '#efe1c7',
+        backgroundColor: '#ffffff',
         autoFocus: true,
 
         dom: {
@@ -72,6 +73,7 @@ export function PhaserGame() {
   return (
     <div className="h-dvh w-screen overflow-hidden bg-[#2c2c2a]">
       <div ref={containerRef} className="relative h-full w-full overflow-hidden" />
+      <LevelNavigationControls level={1} />
     </div>
   )
 }

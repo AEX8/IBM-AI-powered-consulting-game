@@ -4,15 +4,12 @@ import type Phaser from 'phaser'
 import { useEffect, useRef, useState } from 'react'
 import { PreparationPanel } from './PreparationPanel'
 import type { GradePreparation } from './preparationContent'
+import { LevelNavigationControls } from './LevelNavigationControls'
 
 const GAME_WIDTH = 1440
 const GAME_HEIGHT = 720
 
-const defaultGradePreparation: GradePreparation = async ({
-  personaId,
-  objectives,
-  questions,
-}) => {
+const defaultGradePreparation: GradePreparation = async ({ personaId, objectives, questions }) => {
   const sessionId = crypto.randomUUID()
 
   const response = await fetch('/api/meeting-prep/submissions', {
@@ -50,7 +47,8 @@ export function LevelTwoGame({
   preparation = false,
   gradePreparation = defaultGradePreparation,
 }: {
-  preparation?: boolean; gradePreparation?: GradePreparation
+  preparation?: boolean
+  gradePreparation?: GradePreparation
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<Phaser.Game | undefined>(undefined)
@@ -72,7 +70,7 @@ export function LevelTwoGame({
         parent: containerRef.current,
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
-        backgroundColor: '#efe1c7',
+        backgroundColor: '#ffffff',
         autoFocus: true,
         dom: {
           // The consultant notebook uses a real textarea so normal editing,
@@ -113,21 +111,42 @@ export function LevelTwoGame({
   return (
     <div className="h-dvh w-screen overflow-hidden bg-[#2c2c2a]">
       <div ref={containerRef} className="relative h-full w-full overflow-hidden" />
+      <LevelNavigationControls level={preparation ? 3 : 2} />
       {preparation && managerIntroOpen && !preparationOpen && (
-        <aside aria-label="Manager introduction" className="fixed right-4 bottom-4 z-40 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border-4 border-[#2c2c2a] bg-[#fff7e4] shadow-lg">
-          <h2 className="border-b-4 border-[#2c2c2a] bg-[#b88b00] px-4 py-2 text-lg font-bold text-[#2c2c2a]">A word from your manager</h2>
+        <aside
+          aria-label="Manager introduction"
+          className="fixed right-4 bottom-4 z-40 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border-4 border-[#a6c8ff] bg-[#edf5ff] shadow-lg"
+        >
+          <h2 className="border-b-4 border-[#a6c8ff] bg-[#d0e2ff] px-4 py-2 text-lg font-bold text-[#001d6c]">
+            A word from your manager
+          </h2>
           <div className="space-y-3 p-4 text-sm leading-relaxed text-[#2c2c2a]">
-            <p>Time to prepare for your client meeting! Head to the laptop and press E to get started.</p>
-            <p>Review your client’s file, choose up to three meeting objectives, and prepare up to three useful questions. Then request feedback before entering the meeting.</p>
-            <button type="button" onClick={() => setManagerIntroOpen(false)} className="rounded-lg border-2 border-[#2c2c2a] bg-[#608e49] px-4 py-2 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#205578]">Got it!</button>
+            <p>
+              Time to prepare for your client meeting! Head to the laptop and press E to get
+              started.
+            </p>
+            <p>
+              Review your client’s file, choose up to three meeting objectives, and prepare up to
+              three useful questions. Then request feedback before entering the meeting.
+            </p>
+            <button
+              type="button"
+              onClick={() => setManagerIntroOpen(false)}
+              className="rounded-lg border-2 border-[#002d9c] bg-[#002d9c] px-4 py-2 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#002d9c]"
+            >
+              Got it!
+            </button>
           </div>
         </aside>
       )}
       {preparation && preparationOpen && (
-        <PreparationPanel gradePreparation={gradePreparation} onClose={() => {
-          setPreparationOpen(false)
-          gameRef.current?.events.emit('preparation:close')
-        }} />
+        <PreparationPanel
+          gradePreparation={gradePreparation}
+          onClose={() => {
+            setPreparationOpen(false)
+            gameRef.current?.events.emit('preparation:close')
+          }}
+        />
       )}
     </div>
   )

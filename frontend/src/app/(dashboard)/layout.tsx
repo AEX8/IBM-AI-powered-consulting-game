@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="bg-warm-cream min-h-screen">
+    <div className="ibm-theme min-h-screen bg-white">
       <LandingHeader />
       <main>{children}</main>
     </div>

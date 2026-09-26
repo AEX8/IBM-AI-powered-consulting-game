@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { Home, FileCheck2, ArrowRight, Check, LoaderCircle, Trophy } from 'lucide-react'
+import { FileCheck2, ArrowRight, Check, LoaderCircle, Trophy } from 'lucide-react'
+import { LevelNavigationControls } from '@/features/game/components/LevelNavigationControls'
 import { z } from 'zod'
 import {
   PERSONAS,
@@ -84,7 +85,7 @@ export function ClosingPortal({
   const active =
     preferred && availableClientKeys.includes(preferred) ? preferred : availableClientKeys[0]
   return (
-    <div className={styles.portal}>
+    <div className={`ibm-theme ${styles.portal}`}>
       <header className="bg-light-blue flex flex-wrap items-center justify-between gap-3 px-6 py-3">
         <p className="text-xs font-extrabold tracking-[0.12em] text-white uppercase">
           Level 6 · Close the Deal
@@ -133,14 +134,7 @@ export function ClosingPortal({
           <ClosingWorkspace persona={PERSONAS[key]} />
         </div>
       ))}
-      <Link
-        href="/dashboard"
-        aria-label="Back to lobby"
-        title="Back to lobby"
-        className="border-charcoal bg-plant-green hover:bg-dark-blue fixed bottom-6 left-6 z-30 flex size-14 items-center justify-center rounded-full border-[3px] text-white shadow-[3px_3px_0_var(--charcoal)] transition"
-      >
-        <Home size={24} />
-      </Link>
+      <LevelNavigationControls level={6} client={active} />
     </div>
   )
 }

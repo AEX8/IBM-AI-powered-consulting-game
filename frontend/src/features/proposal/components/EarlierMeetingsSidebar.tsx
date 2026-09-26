@@ -16,20 +16,20 @@ export function EarlierMeetingsSidebar({
   onSelectNote,
 }: EarlierMeetingsSidebarProps) {
   return (
-    <aside className="bg-dark-blue max-h-[30dvh] w-full shrink-0 overflow-y-auto overscroll-contain px-6 py-8 md:max-h-none md:w-[280px] md:pb-28">
-      <div className="border-charcoal bg-honey-wood flex h-14 w-14 items-center justify-center rounded-full border-[3px] text-lg font-extrabold text-white">
+    <aside className="max-h-[30dvh] w-full shrink-0 overflow-y-auto overscroll-contain bg-[#edf5ff] px-6 py-8 md:max-h-none md:w-[280px] md:pb-28">
+      <div className="border-charcoal flex h-14 w-14 items-center justify-center rounded-full border-[3px] bg-[#a6c8ff] text-lg font-extrabold text-[#001d6c]">
         {clientInitials}
       </div>
 
-      <h2 className="mt-4 text-lg font-extrabold text-white">{clientName}</h2>
+      <h2 className="mt-4 text-lg font-extrabold text-[#001d6c]">{clientName}</h2>
 
-      <span className="bg-plant-green mt-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white uppercase">
+      <span className="mt-2 inline-block rounded-full bg-[#d0e2ff] px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-[#001d6c] uppercase">
         Continued from Level 4
       </span>
 
-      <hr className="mt-5 border-white/20" />
+      <hr className="mt-5 border-[#a6c8ff]" />
 
-      <p className="mt-5 text-[11px] font-extrabold tracking-[0.1em] text-white/70 uppercase">
+      <p className="mt-5 text-[11px] font-extrabold tracking-[0.1em] text-[#243b53] uppercase">
         From earlier meetings
       </p>
 
@@ -45,8 +45,8 @@ export function EarlierMeetingsSidebar({
                 aria-haspopup="dialog"
                 className={`w-full rounded-md px-3 py-2.5 text-left text-sm font-medium transition ${
                   isSelected
-                    ? 'bg-plant-green text-white'
-                    : 'text-charcoal bg-white hover:bg-white/90'
+                    ? 'bg-[#a6c8ff] text-[#001d6c]'
+                    : 'text-charcoal bg-white hover:bg-[#d0e2ff]'
                 }`}
               >
                 {note.label}

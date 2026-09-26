@@ -89,7 +89,7 @@ const subscribeToLevelOneUnlock = (onStoreChange: () => void) => {
 const readLevelOneUnlock = () => window.localStorage.getItem(LEVEL_ONE_UNLOCK_KEY) === 'true'
 
 const roomImageByType: Record<ConsultingStage['roomType'], string> = {
-  'lead-room': '/assets/landing/rooms/findALead2.png',
+  'lead-room': '/assets/landing/rooms/findALead2-blue.png',
   'outreach-office': '/assets/landing/rooms/outreach.png',
   'preparation-room': '/assets/landing/rooms/meetingPrep.png',
   'client-meeting': '/assets/landing/rooms/clientMeeting.png',
@@ -273,11 +273,11 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
         style={roomAnimationStyle}
         className={`game-room border-charcoal relative min-h-72 overflow-hidden border-[4px] transition-all duration-500 xl:h-full xl:min-h-0 ${
           isPlayable
-            ? 'game-room-active cursor-pointer bg-[#ffdda3]'
+            ? 'game-room-active cursor-pointer bg-white'
             : 'game-room-locked cursor-not-allowed bg-white'
-        } ${isCompleted ? 'ring-8 ring-[#5b8c4a]/55' : ''} ${
+        } ${isCompleted ? 'ring-8 ring-[#002d9c]/55' : ''} ${
           isNextLevelUnlocked || isShowingUnlockAnimation
-            ? 'z-10 shadow-[0_0_38px_rgba(201,138,62,0.85)] ring-8 ring-[#c98a3e]'
+            ? 'z-10 shadow-[0_0_38px_rgba(120,169,255,0.55)] ring-8 ring-[#002d9c]'
             : ''
         }`}
         aria-labelledby={`stage-${stage.id}-title`}
@@ -289,9 +289,9 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
             className="pointer-events-none absolute inset-0 z-30 overflow-hidden"
             aria-hidden="true"
           >
-            <Sparkles className="absolute top-[20%] left-[18%] h-8 w-8 animate-ping text-[#c98a3e]" />
-            <Sparkles className="absolute top-[42%] right-[14%] h-6 w-6 animate-pulse text-[#5b8c4a]" />
-            <Sparkles className="absolute bottom-[18%] left-[44%] h-7 w-7 animate-ping text-[#c98a3e]" />
+            <Sparkles className="absolute top-[20%] left-[18%] h-8 w-8 animate-ping text-[#002d9c]" />
+            <Sparkles className="absolute top-[42%] right-[14%] h-6 w-6 animate-pulse text-[#a6c8ff]" />
+            <Sparkles className="absolute bottom-[18%] left-[44%] h-7 w-7 animate-ping text-[#002d9c]" />
           </div>
         )}
 
@@ -371,8 +371,8 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
                 : stage.id === 5
                   ? 'origin-bottom scale-[0.88]'
                   : isExpandedRoomImage
-                  ? 'origin-bottom scale-[1.1]'
-                  : ''
+                    ? 'origin-bottom scale-[1.1]'
+                    : ''
             }`}
           >
             <Image
