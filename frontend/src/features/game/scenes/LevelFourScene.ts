@@ -204,20 +204,20 @@ export class LevelFourScene extends Phaser.Scene {
    * CSS shapes and each object's collision footprint can be tuned independently.
    */
   private createTilemapRoom(): void {
-    this.add.rectangle(720, 180, WORLD_WIDTH, 360, 0xead8bd)
+    this.add.rectangle(720, 180, WORLD_WIDTH, 360, 0xf7fbff)
     const wallPattern = this.add.graphics()
-    wallPattern.lineStyle(2, 0xe0cbaa, 0.38)
+    wallPattern.lineStyle(2, 0xd0e2ff, 0.38)
     for (let x = 0; x <= WORLD_WIDTH; x += 120) wallPattern.lineBetween(x, 0, x, 360)
     for (let y = 0; y <= 360; y += 90) wallPattern.lineBetween(0, y, WORLD_WIDTH, y)
 
-    this.add.rectangle(720, 540, WORLD_WIDTH, 360, 0xb98900)
+    this.add.rectangle(720, 540, WORLD_WIDTH, 360, 0xffffff)
     const carpetPattern = this.add.graphics()
-    carpetPattern.lineStyle(2, 0x9c7300, 0.22)
+    carpetPattern.lineStyle(2, 0xa6c8ff, 0.22)
     for (let x = -360; x < WORLD_WIDTH + 360; x += 90) {
       carpetPattern.lineBetween(x, 360, x + 360, WORLD_HEIGHT)
     }
 
-    this.add.rectangle(720, 360, WORLD_WIDTH, 18, 0x8f5b28).setDepth(3)
+    this.add.rectangle(720, 360, WORLD_WIDTH, 18, 0xa6c8ff).setDepth(3)
     this.add.rectangle(720, 6, WORLD_WIDTH, 12, 0x2c2c2a).setDepth(30)
     this.add.rectangle(720, 714, WORLD_WIDTH, 12, 0x2c2c2a).setDepth(30)
     this.add.rectangle(6, 360, 12, WORLD_HEIGHT, 0x2c2c2a).setDepth(30)
@@ -264,7 +264,7 @@ export class LevelFourScene extends Phaser.Scene {
     desk.on('pointerdown', startMeeting)
     this.chair.on('pointerdown', startMeeting)
 
-    const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xffdda3, 0.05).setDepth(3)
+    const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xd0e2ff, 0.05).setDepth(3)
     this.tweens.add({
       targets: paintingGlow,
       alpha: { from: 0.03, to: 0.13 },
@@ -435,12 +435,17 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   private createRoundButton(x: number, y: number, label: string, action: () => void): void {
-    const circle = this.add.circle(x, y, 28, label === '⌂' ? 0x5b8c4a : 0x2c2c2a).setDepth(120)
+    const circle = this.add
+      .circle(x, y, 28, label === '⌂' ? 0x5b8c4a : 0x2c2c2a)
+      .setDepth(120)
+      .setVisible(false)
     circle.setStrokeStyle(4, 0x161616).setInteractive({ useHandCursor: true })
+    circle.disableInteractive()
     const icon = this.add
       .text(x, y - 2, label, { fontFamily: 'Arial', fontSize: '30px', color: '#ffffff' })
       .setOrigin(0.5)
       .setDepth(121)
+      .setVisible(false)
     circle.on('pointerdown', action)
     circle.on('pointerover', () =>
       this.tweens.add({ targets: [circle, icon], scale: 1.1, duration: 120 })
