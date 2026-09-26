@@ -48,14 +48,14 @@ export default function LandingHeader() {
 
   return (
     <>
-      <header className="game-header border-charcoal bg-honey-wood relative z-40 grid h-16 grid-cols-[1fr_auto_1fr] items-center border-[4px] px-3 shadow-[0_4px_0_var(--wood-shadow)] sm:px-5">
+      <header className="game-header border-dark-blue relative z-40 grid h-16 grid-cols-[1fr_auto_1fr] items-center border-[4px] bg-[#d0e2ff] px-3 shadow-[0_4px_0_var(--wood-shadow)] sm:px-5">
         <div className="flex justify-start">
           <button
             type="button"
             onClick={() => {
               setMenuIsOpen((currentValue) => !currentValue)
             }}
-            className="border-charcoal bg-warm-cream text-charcoal hover:bg-cloud-white flex h-9 w-9 items-center justify-center rounded-lg border-[2px] shadow-[2px_2px_0_var(--charcoal)] transition"
+            className="border-dark-blue text-dark-blue flex h-9 w-9 items-center justify-center rounded-lg border-[2px] bg-white shadow-[2px_2px_0_var(--wood-shadow)] transition hover:bg-[#edf5ff]"
             aria-label={menuIsOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={menuIsOpen}
             aria-controls="game-navigation"
@@ -80,7 +80,7 @@ export default function LandingHeader() {
             type="button"
             onClick={handleSignOut}
             disabled={isSigningOut}
-            className="border-charcoal bg-plant-green hover:bg-dark-blue rounded-lg border-[2px] px-3 py-1.5 text-xs font-bold text-white shadow-[2px_2px_0_var(--charcoal)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
+            className="border-dark-blue bg-dark-blue rounded-lg border-[2px] px-3 py-1.5 text-xs font-bold text-white shadow-[2px_2px_0_var(--wood-shadow)] transition hover:bg-[#002d9c] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
           >
             {isSigningOut ? 'Signing out...' : 'Sign out'}
           </button>

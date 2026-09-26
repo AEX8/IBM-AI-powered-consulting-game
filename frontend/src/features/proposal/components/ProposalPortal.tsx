@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import Link from 'next/link'
-import { Home } from 'lucide-react'
+import { LevelNavigationControls } from '@/features/game/components/LevelNavigationControls'
 import { ProposalHeader } from './ProposalHeader'
 import { ProposalWorkspace } from './ProposalWorkspace'
 import { PERSONAS, personaKeyFromName, type PersonaKey } from '../personas'
@@ -28,19 +27,6 @@ function readSelectedClientName(): string | null {
   }
 }
 
-function LobbyButton() {
-  return (
-    <Link
-      href="/dashboard"
-      aria-label="Back to lobby"
-      title="Back to lobby"
-      className="border-charcoal bg-plant-green hover:bg-dark-blue fixed bottom-6 left-6 z-30 flex size-14 items-center justify-center rounded-full border-[3px] text-white shadow-[3px_3px_0_var(--charcoal)] transition"
-    >
-      <Home className="size-6" aria-hidden="true" />
-    </Link>
-  )
-}
-
 type ProposalPortalProps = {
   initialClientKey: PersonaKey | null
   availableClientKeys: PersonaKey[]
@@ -63,17 +49,17 @@ export function ProposalPortal({ initialClientKey, availableClientKeys }: Propos
 
   if (!activeKey) {
     return (
-      <div className="flex min-h-dvh items-center justify-center p-10">
+      <div className="ibm-theme flex min-h-dvh items-center justify-center bg-white p-10">
         <p className="text-charcoal max-w-md text-center font-semibold">
           Complete Level 4 with a client to start building a proposal.
         </p>
-        <LobbyButton />
+        <LevelNavigationControls level={5} />
       </div>
     )
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="ibm-theme flex h-dvh flex-col overflow-hidden bg-white">
       <ProposalHeader
         clients={availableClientKeys.map((key) => ({ key, name: PERSONAS[key].name }))}
         activeKey={activeKey}
@@ -81,12 +67,15 @@ export function ProposalPortal({ initialClientKey, availableClientKeys }: Propos
       />
 
       {availableClientKeys.map((key) => (
-        <div key={key} className={key === activeKey ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+        <div
+          key={key}
+          className={key === activeKey ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}
+        >
           <ProposalWorkspace persona={PERSONAS[key]} />
         </div>
       ))}
 
-      <LobbyButton />
+      <LevelNavigationControls level={5} client={activeKey} />
     </div>
   )
 }

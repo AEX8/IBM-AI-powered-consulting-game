@@ -52,7 +52,7 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className="bg-warm-cream min-h-[calc(100dvh-4rem)] xl:h-[calc(100dvh-4rem)] xl:overflow-hidden">
+    <div className="min-h-[calc(100dvh-4rem)] bg-white xl:h-[calc(100dvh-4rem)] xl:overflow-hidden">
       {arrival === 'signin' && <ElevatorIntro />}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
         {[
@@ -99,7 +99,7 @@ export default async function DashboardPage({
 
         <div className="mt-1 grid items-start gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_210px] xl:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_240px] 2xl:gap-5">
           <section
-            className="border-charcoal bg-honey-wood overflow-hidden rounded-2xl border-[5px] p-2 shadow-[6px_7px_0_var(--wood-shadow)] xl:h-full xl:min-h-0"
+            className="border-charcoal overflow-hidden rounded-2xl border-[5px] bg-white p-2 shadow-[6px_7px_0_var(--wood-shadow)] xl:h-full xl:min-h-0"
             aria-label="Consulting stages"
           >
             <div className="relative z-10 grid gap-1 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,2fr)] xl:h-full xl:min-h-0 2xl:grid-cols-[minmax(330px,0.9fr)_minmax(0,2fr)]">

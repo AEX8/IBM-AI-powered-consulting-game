@@ -141,7 +141,7 @@ export default function SkylineBackground() {
      * technologies and does not interfere with the authentication form.
      */
     <div
-      className="bg-sky-blue pointer-events-none absolute inset-0 overflow-hidden"
+      className="pointer-events-none absolute inset-0 overflow-hidden bg-[#edf5ff]"
       aria-hidden="true"
     >
       {/*
@@ -178,7 +178,7 @@ export default function SkylineBackground() {
       {distantBuildings.map((building, index) => (
         <div
           key={`distant-building-${index}`}
-          className="border-charcoal bg-building-far absolute bottom-0 border-x-[4px] border-t-[4px]"
+          className="border-charcoal absolute bottom-0 border-x-[4px] border-t-[4px] bg-[#d0e2ff]"
           style={
             {
               left: building.left,
@@ -190,14 +190,14 @@ export default function SkylineBackground() {
       ))}
 
       {/*
-       * Foreground buildings use the darker approved blue and thick black
+       * Foreground buildings use a slightly deeper pastel blue and thick black
        * outlines. Buildings continue behind the auth card, as shown in the
        * wireframe, instead of creating an artificial central gap.
        */}
       {nearbyBuildings.map((building, buildingIndex) => (
         <div
           key={`near-building-${buildingIndex}`}
-          className="border-charcoal bg-building-near absolute bottom-0 overflow-hidden border-x-[4px] border-t-[4px]"
+          className="border-charcoal absolute bottom-0 overflow-hidden border-x-[4px] border-t-[4px] bg-[#a6c8ff]"
           style={
             {
               left: building.left,

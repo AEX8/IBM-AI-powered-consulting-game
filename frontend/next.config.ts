@@ -8,10 +8,16 @@ const securityHeaders = [
   // Reduce referrer information leakage
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   // Disable browser features not used by this app
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+  },
 ]
 
 const nextConfig: NextConfig = {
+  experimental: {
+    cpus: 2,
+  },
   async headers() {
     return [
       {
