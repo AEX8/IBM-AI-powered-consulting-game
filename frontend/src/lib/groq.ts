@@ -2,6 +2,19 @@ export const GROQ_MODEL = 'openai/gpt-oss-20b'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_TIMEOUT_MS = 25_000
+// A rate-limit (429) or transient server error (5xx) is worth one retry after
+// a short pause — the rejected call was never processed, so this doesn't cost
+// extra tokens. Anything else (bad request, bad key) retrying won't fix.
+const MAX_TRANSIENT_ATTEMPTS = 2
+const TRANSIENT_RETRY_DELAY_MS = 1500
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export type GroqMessage = {
   role: 'system' | 'user' | 'assistant'
@@ -32,34 +45,45 @@ export async function callGroq(options: {
     throw new GroqError('GROQ_API_KEY is not configured', 500)
   }
 
-  const response = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      temperature: options.temperature ?? 0.6,
-      messages: options.messages,
-      max_tokens: options.maxTokens,
-    }),
-    signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
-  })
+  let lastStatus = 502
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt < MAX_TRANSIENT_ATTEMPTS; attempt++) {
+    const response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: options.temperature ?? 0.6,
+        messages: options.messages,
+        max_tokens: options.maxTokens,
+      }),
+      signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      const content = data?.choices?.[0]?.message?.content
+
+      if (typeof content !== 'string' || !content.trim()) {
+        throw new GroqError('The AI service returned an empty reply', 502)
+      }
+
+      return content.trim()
+    }
+
+    lastStatus = response.status
     console.error('Groq request failed:', response.status, await response.text())
-    throw new GroqError('The AI service request failed', 502)
+
+    const isLastAttempt = attempt === MAX_TRANSIENT_ATTEMPTS - 1
+    if (!isRetryableStatus(response.status) || isLastAttempt) break
+
+    await sleep(TRANSIENT_RETRY_DELAY_MS * (attempt + 1))
   }
 
-  const data = await response.json()
-  const content = data?.choices?.[0]?.message?.content
-
-  if (typeof content !== 'string' || !content.trim()) {
-    throw new GroqError('The AI service returned an empty reply', 502)
-  }
-
-  return content.trim()
+  throw new GroqError('The AI service request failed', lastStatus)
 }
 
 // gpt-oss occasionally emits slightly malformed JSON on one call (e.g. an
