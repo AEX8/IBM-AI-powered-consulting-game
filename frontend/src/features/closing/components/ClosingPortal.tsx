@@ -56,7 +56,8 @@ const CONTRACT_DRAFTS: Partial<Record<PersonaKey, ContractTerms>> = {
   david: {
     scope:
       "Phase one connects your two highest-volume sources — store and online — into one reliable customer view within six weeks, working alongside your internal technology team rather than replacing their work. Mobile and loyalty data follow in a separately scoped second phase once this first view is proven, and any change to this phase's scope is agreed and costed with you before any extra work begins.",
-    investment: '$30,000 AUD, fixed price for phase one — store and online data only, as scoped above.',
+    investment:
+      '$30,000 AUD, fixed price for phase one — store and online data only, as scoped above.',
     startDate: twoWeeksFromNow(),
     paymentTerms:
       '50% on signing, 50% on delivery of the phase one dashboard. If delivery runs past six weeks for reasons on our side, the second payment stays tied to delivery rather than the calendar, so you are not paying for our delay.',
@@ -646,9 +647,12 @@ function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigne
   const [typedName, setTypedName] = useState('')
   const [sealing, setSealing] = useState(false)
 
-  useEffect(() => () => {
-    if (sealTimer.current !== null) window.clearTimeout(sealTimer.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (sealTimer.current !== null) window.clearTimeout(sealTimer.current)
+    },
+    []
+  )
 
   function completeSigning() {
     if (sealing || (!hasInk && typedName.trim().length < 2)) return
@@ -715,15 +719,20 @@ function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigne
         aria-label="Sign the contract"
       >
         <div className={styles.signatureHeading}>
-          <span className={styles.signatureIcon} aria-hidden="true"><FileCheck2 size={30} /></span>
+          <span className={styles.signatureIcon} aria-hidden="true">
+            <FileCheck2 size={30} />
+          </span>
           <div>
             <p className={styles.eyebrow}>One final moment</p>
             <h1>“Can I have your signature?”</h1>
-            <p>{clientName} is ready to sign. Add your name or draw your signature to close the deal.</p>
+            <p>
+              {clientName} is ready to sign. Add your name or draw your signature to close the deal.
+            </p>
           </div>
         </div>
         <div className={styles.signatureDocumentLabel} aria-hidden="true">
-          <span>Agreement ready</span><span>IBM Consultancy 101</span>
+          <span>Agreement ready</span>
+          <span>IBM Consultancy 101</span>
         </div>
         <canvas
           ref={canvasRef}

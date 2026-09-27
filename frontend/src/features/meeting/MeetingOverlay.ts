@@ -303,7 +303,9 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
     root.querySelector('[data-retry-score]')?.addEventListener('click', () => void requestScore())
     root.querySelector('[data-restart]')?.addEventListener('click', () => restart())
     root.querySelector('[data-lobby]')?.addEventListener('click', () => {
-      window.location.assign(result?.firstCompletion ? '/dashboard?completed=level-4' : '/dashboard')
+      window.location.assign(
+        result?.firstCompletion ? '/dashboard?completed=level-4' : '/dashboard'
+      )
     })
   }
 

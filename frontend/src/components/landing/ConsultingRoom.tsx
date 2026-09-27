@@ -137,11 +137,19 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
   )
   const laterCelebrationLevel = stage.id === 5 ? 4 : stage.id === 6 ? 5 : null
   const laterCelebrationArrival =
-    laterCelebrationLevel === 4 ? levelFourArrival : laterCelebrationLevel === 5 ? levelFiveArrival : false
+    laterCelebrationLevel === 4
+      ? levelFourArrival
+      : laterCelebrationLevel === 5
+        ? levelFiveArrival
+        : false
 
   useEffect(() => {
-    if (laterCelebrationLevel === null || !laterCelebrationArrival ||
-        !completedStageIds.includes(laterCelebrationLevel)) return
+    if (
+      laterCelebrationLevel === null ||
+      !laterCelebrationArrival ||
+      !completedStageIds.includes(laterCelebrationLevel)
+    )
+      return
     const timer = window.setTimeout(() => {
       localStorage.setItem(celebrationSeenKey(laterCelebrationLevel), 'true')
       const url = new URL(window.location.href)
