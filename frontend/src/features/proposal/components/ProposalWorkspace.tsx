@@ -278,7 +278,9 @@ export function ProposalWorkspace({ persona }: ProposalWorkspaceProps) {
             savingProgress={isScoring}
             onRetrySave={() => void retryProgressSave()}
             onPlayAgain={playAgain}
-            onContinue={() => router.push('/dashboard')}
+            onContinue={() =>
+              router.push(rewards?.firstCompletion ? '/dashboard?completed=level-5' : '/dashboard')
+            }
           />
         )}
 

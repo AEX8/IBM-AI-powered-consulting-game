@@ -76,7 +76,7 @@ const CONCERN_ANSWERS: Partial<Record<PersonaKey, readonly [string, string]>> = 
     'You and your finance lead can sign off this week. The contract includes a review checkpoint at six weeks, and if timelines slip, the second payment moves with the delivery date rather than being due upfront.',
   ],
   david: [
-    'The $30,000 fixed price covers store and online data only — the two sources causing most of your reconciliation time today — which is exactly what makes six weeks realistic rather than trying to unify all four systems at once. That focus should start saving your team reconciliation time well within the six-week window, and if anything on our side pushes delivery later, the second payment moves with it rather than being due on a fixed date.',
+    'The $30,000 fixed price covers store and online data only, the two sources taking most of your reconciliation time. Limiting phase one to those sources makes six weeks realistic and should start saving your team time within that window. If delivery slips for reasons on our side, the second payment moves with delivery rather than falling due on a fixed date.',
     "You and your technology lead can approve this together this week — no wider committee needed for a phase this size. If delivery slips for reasons on our side, you don't pay the second instalment until the working view is actually delivered, and if any new requirement comes up beyond store and online data, we'll scope and cost it separately before starting rather than adding it to this fixed price.",
   ],
 }
@@ -641,8 +641,20 @@ function Terms({ terms }: { terms: ContractTerms }) {
 function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigned: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
+  const sealTimer = useRef<number | null>(null)
   const [hasInk, setHasInk] = useState(false)
   const [typedName, setTypedName] = useState('')
+  const [sealing, setSealing] = useState(false)
+
+  useEffect(() => () => {
+    if (sealTimer.current !== null) window.clearTimeout(sealTimer.current)
+  }, [])
+
+  function completeSigning() {
+    if (sealing || (!hasInk && typedName.trim().length < 2)) return
+    setSealing(true)
+    sealTimer.current = window.setTimeout(onSigned, 850)
+  }
 
   function point(event: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = event.currentTarget
@@ -697,14 +709,22 @@ function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigne
   return (
     <div className={styles.signatureBackdrop}>
       <section
-        className={styles.signaturePrompt}
+        className={`${styles.signaturePrompt} ${sealing ? styles.signatureSealing : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label="Sign the contract"
       >
-        <p className={styles.eyebrow}>One final moment</p>
-        <h1>“Can I have your signature?”</h1>
-        <p>{clientName} is ready to sign. Add your game signature to seal the deal.</p>
+        <div className={styles.signatureHeading}>
+          <span className={styles.signatureIcon} aria-hidden="true"><FileCheck2 size={30} /></span>
+          <div>
+            <p className={styles.eyebrow}>One final moment</p>
+            <h1>“Can I have your signature?”</h1>
+            <p>{clientName} is ready to sign. Add your name or draw your signature to close the deal.</p>
+          </div>
+        </div>
+        <div className={styles.signatureDocumentLabel} aria-hidden="true">
+          <span>Agreement ready</span><span>IBM Consultancy 101</span>
+        </div>
         <canvas
           ref={canvasRef}
           className={styles.signatureCanvas}
@@ -726,17 +746,21 @@ function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigne
           placeholder="Your name"
           maxLength={80}
         />
+        <div className={styles.signatureSeal} aria-live="polite">
+          <Check size={20} aria-hidden="true" />
+          {sealing ? 'Deal sealed!' : 'Ready for your final sign-off'}
+        </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.secondary} onClick={clear}>
+          <button type="button" className={styles.secondary} onClick={clear} disabled={sealing}>
             Clear
           </button>
           <button
             type="button"
             className={styles.primary}
-            disabled={!hasInk && typedName.trim().length < 2}
-            onClick={onSigned}
+            disabled={sealing || (!hasInk && typedName.trim().length < 2)}
+            onClick={completeSigning}
           >
-            Complete the game <ArrowRight size={18} />
+            {sealing ? 'Sealing the deal…' : 'Sign and complete the game'} <ArrowRight size={18} />
           </button>
         </div>
       </section>

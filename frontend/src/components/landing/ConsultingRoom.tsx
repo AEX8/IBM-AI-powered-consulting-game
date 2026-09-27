@@ -23,7 +23,19 @@ const LEVEL_TWO_COMPLETION_EVENT = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 const LEVEL_THREE_COMPLETION_KEY = 'ibm-level-three-completed'
 const LEVEL_THREE_CELEBRATION_KEY = 'ibm-level-three-celebration-pending'
-const celebrationSeenKey = (level: 1 | 2 | 3) => `ibm-level-${level}-celebration-seen`
+const celebrationSeenKey = (level: 1 | 2 | 3 | 4 | 5) => `ibm-level-${level}-celebration-seen`
+const laterCelebrationEvent = 'ibm-later-level-celebration'
+const subscribeToLaterCelebration = (changed: () => void) => {
+  window.addEventListener('storage', changed)
+  window.addEventListener(laterCelebrationEvent, changed)
+  return () => {
+    window.removeEventListener('storage', changed)
+    window.removeEventListener(laterCelebrationEvent, changed)
+  }
+}
+const readLaterCelebration = (level: 4 | 5) =>
+  new URLSearchParams(window.location.search).get('completed') === `level-${level}` &&
+  localStorage.getItem(celebrationSeenKey(level)) !== 'true'
 
 const subscribeToLevelThreeCompletion = (changed: () => void) => {
   window.addEventListener('storage', changed)
@@ -113,6 +125,34 @@ const roomImageDescriptionByType: Record<ConsultingStage['roomType'], string> = 
 
 export default function ConsultingRoom({ stage, completedStageIds = [] }: ConsultingRoomProps) {
   const [isUnlocking, setIsUnlocking] = useState(false)
+  const levelFourArrival = useSyncExternalStore(
+    subscribeToLaterCelebration,
+    () => readLaterCelebration(4),
+    () => false
+  )
+  const levelFiveArrival = useSyncExternalStore(
+    subscribeToLaterCelebration,
+    () => readLaterCelebration(5),
+    () => false
+  )
+  const laterCelebrationLevel = stage.id === 5 ? 4 : stage.id === 6 ? 5 : null
+  const laterCelebrationArrival =
+    laterCelebrationLevel === 4 ? levelFourArrival : laterCelebrationLevel === 5 ? levelFiveArrival : false
+
+  useEffect(() => {
+    if (laterCelebrationLevel === null || !laterCelebrationArrival ||
+        !completedStageIds.includes(laterCelebrationLevel)) return
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(celebrationSeenKey(laterCelebrationLevel), 'true')
+      const url = new URL(window.location.href)
+      if (url.searchParams.get('completed') === `level-${laterCelebrationLevel}`) {
+        url.searchParams.delete('completed')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+      }
+      window.dispatchEvent(new Event(laterCelebrationEvent))
+    }, 5400)
+    return () => window.clearTimeout(timer)
+  }, [laterCelebrationArrival, laterCelebrationLevel, completedStageIds])
   const levelThreeCompleted = useSyncExternalStore(
     subscribeToLevelThreeCompletion,
     readLevelThreeCompletion,
@@ -271,6 +311,12 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
   return (
     <>
       {stage.id === 4 && <LevelCompletionCelebration show={levelThreeArrival} completedLevel={3} />}
+      {laterCelebrationLevel !== null && completedStageIds.includes(laterCelebrationLevel) && (
+        <LevelCompletionCelebration
+          show={laterCelebrationArrival}
+          completedLevel={laterCelebrationLevel}
+        />
+      )}
       {stage.id === 2 && <LevelCompletionCelebration show={levelOneCompletionArrival} />}
       {stage.id === 3 && (
         <LevelCompletionCelebration show={levelTwoCompletionArrival} completedLevel={2} />

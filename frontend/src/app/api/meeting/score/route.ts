@@ -104,6 +104,7 @@ export async function POST(request: Request) {
         feedback: result.feedback,
         improvements: result.improvements,
         xpAwarded: reward?.xpAwarded ?? 0,
+        firstCompletion: reward?.firstCompletion === true,
       })
     } catch (saveError) {
       // A result that was not saved must never look like a pass.
