@@ -178,7 +178,7 @@ export default function SkylineBackground() {
       {distantBuildings.map((building, index) => (
         <div
           key={`distant-building-${index}`}
-          className="border-charcoal bg-building-far absolute bottom-0 border-x-[4px] border-t-[4px]"
+          className="border-charcoal absolute bottom-0 border-x-[4px] border-t-[4px] bg-[#d0e2ff]"
           style={
             {
               left: building.left,
@@ -197,7 +197,7 @@ export default function SkylineBackground() {
       {nearbyBuildings.map((building, buildingIndex) => (
         <div
           key={`near-building-${buildingIndex}`}
-          className="border-charcoal bg-building-near absolute bottom-0 overflow-hidden border-x-[4px] border-t-[4px]"
+          className="absolute bottom-0 overflow-hidden border-x-[4px] border-t-[4px] border-[#001d6c] bg-[#a6c8ff]"
           style={
             {
               left: building.left,
