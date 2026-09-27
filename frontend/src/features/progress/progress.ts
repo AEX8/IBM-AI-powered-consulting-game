@@ -286,7 +286,10 @@ export function applyStageCompletion(
 export function toConsultantProgress(data: ProgressData): ConsultantProgress {
   return {
     level: Math.floor(data.totalXp / XP_PER_LEVEL) + 1,
-    currentXp: data.totalXp % XP_PER_LEVEL,
+    // Capped, not wrapped: the demo is a single short playthrough, not a
+    // persistent RPG, so the score bar should fill up and stay full once the
+    // player has earned enough XP rather than resetting past a threshold.
+    currentXp: Math.min(data.totalXp, XP_PER_LEVEL),
     requiredXp: XP_PER_LEVEL,
     totalXp: data.totalXp,
     completedStages: Math.min(TOTAL_STAGES, new Set(data.completedLevels).size),
