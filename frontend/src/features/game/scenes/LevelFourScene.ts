@@ -90,8 +90,14 @@ export class LevelFourScene extends Phaser.Scene {
     this.load.image('level-four-player-back', '/assets/game/level-2/player-facing-desk.png')
     // Both portraits are preloaded unconditionally so the room can swap the client
     // in place when a second meeting follows the first, without a reload.
-    this.load.image(this.portraitKey(CLIENTS.sarah), `/assets/characters/npcs/${CLIENTS.sarah.portrait}`)
-    this.load.image(this.portraitKey(CLIENTS.david), `/assets/characters/npcs/${CLIENTS.david.portrait}`)
+    this.load.image(
+      this.portraitKey(CLIENTS.sarah),
+      `/assets/characters/npcs/${CLIENTS.sarah.portrait}`
+    )
+    this.load.image(
+      this.portraitKey(CLIENTS.david),
+      `/assets/characters/npcs/${CLIENTS.david.portrait}`
+    )
     this.load.image(
       'level-four-painting',
       '/assets/game/level-4/furniture/level-four-garden-painting.png'
@@ -147,7 +153,9 @@ export class LevelFourScene extends Phaser.Scene {
    */
   private readSavedPrep(): Record<string, SavedPrep> {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(LEVEL_THREE_PREPARATION_KEY) ?? 'null') as unknown
+      const saved = JSON.parse(
+        window.localStorage.getItem(LEVEL_THREE_PREPARATION_KEY) ?? 'null'
+      ) as unknown
 
       if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {}
 
@@ -160,7 +168,10 @@ export class LevelFourScene extends Phaser.Scene {
       for (const [personaId, value] of Object.entries(saved as Record<string, unknown>)) {
         const entry = value as Partial<Record<'objectives' | 'questions', unknown>> | null
         if (!entry) continue
-        map[personaId] = { objectives: toList(entry.objectives), questions: toList(entry.questions) }
+        map[personaId] = {
+          objectives: toList(entry.objectives),
+          questions: toList(entry.questions),
+        }
       }
       return map
     } catch {
@@ -200,7 +211,9 @@ export class LevelFourScene extends Phaser.Scene {
       if (Array.isArray(order)) {
         const queue = order
           .filter((id): id is string => typeof id === 'string' && !doneIds.has(id))
-          .map((id) => Object.values(CLIENTS).find((meetingClient) => meetingClient.personaId === id))
+          .map((id) =>
+            Object.values(CLIENTS).find((meetingClient) => meetingClient.personaId === id)
+          )
           .filter((meetingClient): meetingClient is MeetingClient => Boolean(meetingClient))
 
         if (queue.length > 0) return queue

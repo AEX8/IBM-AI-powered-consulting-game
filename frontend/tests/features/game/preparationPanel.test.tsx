@@ -53,14 +53,24 @@ describe('preparation progression', () => {
       feedback: 'Explore measurable business value.',
       firstCompletion: true,
     })
-    render(<PreparationPanel onClose={vi.fn()} gradePreparation={grade} availableClientKeys={['david']} />)
+    render(
+      <PreparationPanel
+        onClose={vi.fn()}
+        gradePreparation={grade}
+        availableClientKeys={['david']}
+      />
+    )
     prepare()
     await screen.findByText('Explore measurable business value.')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Enter Meeting →' })).toBeEnabled())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Enter Meeting →' })).toBeEnabled()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Enter Meeting →' }))
     expect(localStorage.getItem('ibm-level-three-completed')).toBe('true')
     expect(sessionStorage.getItem('ibm-level-three-celebration-pending')).toBe('true')
-    expect(JSON.parse(localStorage.getItem('ibm-level-three-preparation')!)['test-level-2']).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem('ibm-level-three-preparation')!)['test-level-2']
+    ).toMatchObject({
       objectives: expect.any(Array),
       questions: expect.any(Array),
     })
@@ -73,10 +83,18 @@ describe('preparation progression', () => {
       feedback: 'Good preparation.',
       firstCompletion: false,
     })
-    render(<PreparationPanel onClose={vi.fn()} gradePreparation={grade} availableClientKeys={['david']} />)
+    render(
+      <PreparationPanel
+        onClose={vi.fn()}
+        gradePreparation={grade}
+        availableClientKeys={['david']}
+      />
+    )
     prepare()
     await screen.findByText('Good preparation.')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Enter Meeting →' })).toBeEnabled())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Enter Meeting →' })).toBeEnabled()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Enter Meeting →' }))
     expect(sessionStorage.getItem('ibm-level-three-celebration-pending')).toBeNull()
     expect(await screen.findByText('Preparation saved')).toBeInTheDocument()
