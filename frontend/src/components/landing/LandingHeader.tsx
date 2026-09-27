@@ -2,13 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { Home, Menu, User, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function LandingHeader() {
   const pathname = usePathname()
-  const router = useRouter()
   const { signOut } = useAuth()
 
   const [menuIsOpen, setMenuIsOpen] = useState(false)
@@ -20,8 +19,7 @@ export default function LandingHeader() {
     try {
       setIsSigningOut(true)
       await signOut()
-      router.replace('/auth/signin')
-      router.refresh()
+      window.location.replace('/')
     } catch (error) {
       console.error('Sign out failed:', error)
     } finally {

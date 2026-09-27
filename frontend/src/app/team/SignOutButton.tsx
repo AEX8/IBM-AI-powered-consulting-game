@@ -1,16 +1,13 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function SignOutButton() {
-  const router = useRouter()
   const { signOut } = useAuth()
 
   const handleSignOut = async () => {
     await signOut()
-    router.replace('/auth/signin')
-    router.refresh()
+    window.location.replace('/')
   }
 
   return (
