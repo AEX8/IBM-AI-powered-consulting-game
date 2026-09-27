@@ -55,10 +55,11 @@ const CONTRACT_DRAFTS: Partial<Record<PersonaKey, ContractTerms>> = {
   },
   david: {
     scope:
-      "Phase one unifies Meridian's store, online, mobile and loyalty customer data into one reliable view, delivered alongside your internal technology team rather than replacing their work — the same scope agreed in the proposal, with a working version ready within six weeks.",
-    investment: '$30,000 AUD, fixed price for the first phase',
+      "Phase one connects your two highest-volume sources — store and online — into one reliable customer view within six weeks, working alongside your internal technology team rather than replacing their work. Mobile and loyalty data follow in a separately scoped second phase once this first view is proven, and any change to this phase's scope is agreed and costed with you before any extra work begins.",
+    investment: '$30,000 AUD, fixed price for phase one — store and online data only, as scoped above.',
     startDate: twoWeeksFromNow(),
-    paymentTerms: '50% on signing, 50% on delivery of the unified customer view.',
+    paymentTerms:
+      '50% on signing, 50% on delivery of the phase one dashboard. If delivery runs past six weeks for reasons on our side, the second payment stays tied to delivery rather than the calendar, so you are not paying for our delay.',
   },
 }
 
@@ -75,8 +76,8 @@ const CONCERN_ANSWERS: Partial<Record<PersonaKey, readonly [string, string]>> = 
     'You and your finance lead can sign off this week. The contract includes a review checkpoint at six weeks, and if timelines slip, the second payment moves with the delivery date rather than being due upfront.',
   ],
   david: [
-    'This fixed price covers the first phase only, and a faster, more reliable customer view should start showing value well within the six-week window. We will check in with you and your team before discussing any further phases.',
-    'You and your technology lead can approve this together this week. The delivery is milestone-based, so the second payment is tied to the working version being delivered, not a fixed date regardless of progress.',
+    'The $30,000 fixed price covers store and online data only — the two sources causing most of your reconciliation time today — which is exactly what makes six weeks realistic rather than trying to unify all four systems at once. That focus should start saving your team reconciliation time well within the six-week window, and if anything on our side pushes delivery later, the second payment moves with it rather than being due on a fixed date.',
+    "You and your technology lead can approve this together this week — no wider committee needed for a phase this size. If delivery slips for reasons on our side, you don't pay the second instalment until the working view is actually delivered, and if any new requirement comes up beyond store and online data, we'll scope and cost it separately before starting rather than adding it to this fixed price.",
   ],
 }
 
