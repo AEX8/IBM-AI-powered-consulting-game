@@ -140,8 +140,10 @@ export function ProposalOutcomeScreen(props: ProposalOutcomeScreenProps) {
             {showScorecard && <ProposalScorecard scorecard={props.scorecard} />}
 
             <p className="text-charcoal/70 mt-5 text-sm">
-              {props.rewards
+              {props.rewards?.firstCompletion
                 ? 'Level 6 is unlocked for this client. Return home, then choose Close Deal to finalise your contract.'
+                : props.rewards
+                  ? 'Your proposal is saved. Level 6 is already unlocked for this client.'
                 : 'Return home to check your saved progress. Level 6 becomes available once your proposal completion is saved.'}
             </p>
 

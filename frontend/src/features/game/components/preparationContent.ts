@@ -53,5 +53,5 @@ export type PreparationSubmission = {
 
 /** Grading service interface. A successful response must include
  * the saved submission ID, so a network failure cannot unlock the next room. */
-export type PreparationResult = { submissionId: string; feedback: string }
+export type PreparationResult = { submissionId: string; feedback: string; firstCompletion?: boolean }
 export type GradePreparation = (submission: PreparationSubmission) => Promise<PreparationResult>

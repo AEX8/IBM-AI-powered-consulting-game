@@ -42,6 +42,22 @@ describe('completion arrival', () => {
       expect(screen.queryByText('Celebration visible')).not.toBeInTheDocument()
       expect(window.location.search).toBe('')
       expect(localStorage.getItem(`ibm-level-${word}-completed`)).toBe('true')
+      expect(localStorage.getItem(`ibm-level-${level}-celebration-seen`)).toBe('true')
     }
   )
+
+  it.each([1, 2, 3])('does not replay Level %i celebration after it was seen', (level) => {
+    const word = ['one', 'two', 'three'][level - 1]
+    localStorage.setItem(`ibm-level-${word}-completed`, 'true')
+    localStorage.setItem(`ibm-level-${level}-celebration-seen`, 'true')
+    sessionStorage.setItem(`ibm-level-${word}-celebration-pending`, 'true')
+    window.history.replaceState({}, '', `/dashboard?completed=level-${level}`)
+    const stage = consultingStages.find((item) => item.id === level + 1)!
+    render(<ConsultingRoom stage={stage} completedStageIds={[level]} />)
+    expect(screen.queryByText('Celebration visible')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: `ENTER LEVEL ${level + 1}` })).toHaveAttribute(
+      'href',
+      stage.href
+    )
+  })
 })

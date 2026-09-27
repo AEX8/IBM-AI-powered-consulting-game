@@ -513,6 +513,9 @@ export class LevelFourScene extends Phaser.Scene {
     this.notebookOverlay.node.querySelector('textarea')?.addEventListener('keydown', (event) => {
       event.stopPropagation()
     })
+    this.notebookOverlay.node.querySelector('textarea')?.addEventListener('keyup', (event) => {
+      event.stopPropagation()
+    })
   }
 
   private closeNotebook(): void {

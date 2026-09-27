@@ -23,6 +23,7 @@ const LEVEL_TWO_COMPLETION_EVENT = 'ibm-level-two-completed'
 const LEVEL_TWO_CELEBRATION_KEY = 'ibm-level-two-celebration-pending'
 const LEVEL_THREE_COMPLETION_KEY = 'ibm-level-three-completed'
 const LEVEL_THREE_CELEBRATION_KEY = 'ibm-level-three-celebration-pending'
+const celebrationSeenKey = (level: 1 | 2 | 3) => `ibm-level-${level}-celebration-seen`
 
 const subscribeToLevelThreeCompletion = (changed: () => void) => {
   window.addEventListener('storage', changed)
@@ -36,7 +37,9 @@ const readLevelThreeCompletion = () => localStorage.getItem(LEVEL_THREE_COMPLETI
 // A query string alone cannot award completion. The saved completion and pending
 // arrival flag must both exist before the one-time animation is displayed.
 const readLevelThreeArrival = () =>
-  readLevelThreeCompletion() && sessionStorage.getItem(LEVEL_THREE_CELEBRATION_KEY) === 'true'
+  readLevelThreeCompletion() &&
+  sessionStorage.getItem(LEVEL_THREE_CELEBRATION_KEY) === 'true' &&
+  localStorage.getItem(celebrationSeenKey(3)) !== 'true'
 
 const subscribeToLevelOneCompletion = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -56,7 +59,8 @@ const readLevelOneCompletion = () => {
 }
 
 const readLevelOneCompletionArrival = () =>
-  new URLSearchParams(window.location.search).get('completed') === 'level-1'
+  new URLSearchParams(window.location.search).get('completed') === 'level-1' &&
+  localStorage.getItem(celebrationSeenKey(1)) !== 'true'
 
 const subscribeToLevelTwoCompletion = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -73,8 +77,9 @@ const readLevelTwoCompletion = () =>
   window.localStorage.getItem(LEVEL_TWO_COMPLETION_KEY) === 'true'
 
 const readLevelTwoCompletionArrival = () =>
-  new URLSearchParams(window.location.search).get('completed') === 'level-2' ||
-  window.sessionStorage.getItem(LEVEL_TWO_CELEBRATION_KEY) === 'true'
+  (new URLSearchParams(window.location.search).get('completed') === 'level-2' ||
+    window.sessionStorage.getItem(LEVEL_TWO_CELEBRATION_KEY) === 'true') &&
+  localStorage.getItem(celebrationSeenKey(2)) !== 'true'
 
 const subscribeToLevelOneUnlock = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange)
@@ -122,6 +127,7 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
   useEffect(() => {
     if (stage.id !== 4 || !levelThreeArrival) return
     const timer = window.setTimeout(() => {
+      localStorage.setItem(celebrationSeenKey(3), 'true')
       sessionStorage.removeItem(LEVEL_THREE_CELEBRATION_KEY)
       const url = new URL(window.location.href)
       if (url.searchParams.get('completed') === 'level-3') {
@@ -171,6 +177,7 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
     if (currentUrl.searchParams.get('completed') !== 'level-1') return
 
     const timer = window.setTimeout(() => {
+      localStorage.setItem(celebrationSeenKey(1), 'true')
       const url = new URL(window.location.href)
       if (url.searchParams.get('completed') === 'level-1') {
         url.searchParams.delete('completed')
@@ -195,6 +202,7 @@ export default function ConsultingRoom({ stage, completedStageIds = [] }: Consul
     // this session flag before navigation, so the celebration cannot be lost while
     // the dashboard hydrates or while the one-use query parameter is being cleaned up.
     const cleanupTimer = window.setTimeout(() => {
+      localStorage.setItem(celebrationSeenKey(2), 'true')
       window.sessionStorage.removeItem(LEVEL_TWO_CELEBRATION_KEY)
 
       if (arrivedFromLevelTwo) {

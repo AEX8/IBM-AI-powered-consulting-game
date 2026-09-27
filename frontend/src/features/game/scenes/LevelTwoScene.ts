@@ -62,6 +62,7 @@ export class LevelTwoScene extends Phaser.Scene {
   private deskSequenceActive = false
   private lastFootstepAt = 0
   private notes = ''
+  private firstLevelCompletion = false
 
   constructor(private readonly preparationMode = false) {
     super('LevelTwoScene')
@@ -755,6 +756,7 @@ export class LevelTwoScene extends Phaser.Scene {
       })
 
       if (!result.success) console.error('Could not save the Level 2 score:', result.error)
+      if (result.success && result.data?.firstCompletion) this.firstLevelCompletion = true
       return result.success
     } catch (error) {
       console.error('Could not save the Level 2 score:', error)
@@ -1004,7 +1006,11 @@ export class LevelTwoScene extends Phaser.Scene {
 
       if (passed) {
         window.localStorage.setItem(LEVEL_TWO_COMPLETION_KEY, 'true')
-        this.time.delayedCall(350, () => this.showLevelThreeUnlockedPrompt())
+        if (this.firstLevelCompletion) {
+          this.time.delayedCall(350, () => this.showLevelThreeUnlockedPrompt())
+        } else {
+          window.location.assign('/dashboard')
+        }
         return
       }
 
@@ -1393,7 +1399,11 @@ export class LevelTwoScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(7300)
     const textarea = input.getChildByName('levelTwoNotes') as HTMLTextAreaElement | null
-    if (textarea) textarea.value = this.notes
+    if (textarea) {
+      textarea.value = this.notes
+      textarea.addEventListener('keydown', (event) => event.stopPropagation())
+      textarea.addEventListener('keyup', (event) => event.stopPropagation())
+    }
 
     const saveX = notebookX + notebookWidth / 2 - 25
     const saveY = notebookY + notebookHeight / 2 + 28

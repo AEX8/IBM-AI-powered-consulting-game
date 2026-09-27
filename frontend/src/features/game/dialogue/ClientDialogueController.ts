@@ -278,7 +278,7 @@ export class ClientDialogueController {
     const replyInput = this.scene.add
       .dom(panelLeft + 205, this.worldHeight - 67)
       .createFromHTML(
-        `<textarea name="clientScriptedReply" readonly rows="3" aria-label="Preloaded reply to ${client.name}" style="width:310px;height:76px;box-sizing:border-box;border:2px solid #d8c59e;border-radius:10px;padding:10px 14px;background:#ffffff;color:#161616;font:16px/1.3 Arial,sans-serif;outline:none;resize:none;overflow-y:auto;cursor:default;white-space:pre-wrap;"></textarea>`
+        `<textarea name="clientScriptedReply" readonly rows="3" aria-label="Preloaded reply to ${client.name}" style="width:310px;height:76px;box-sizing:border-box;border:2px solid #a6c8ff;border-radius:10px;padding:10px 14px;background:#ffffff;color:#161616;font:16px/1.3 Arial,sans-serif;outline:none;resize:none;overflow-y:auto;cursor:default;white-space:pre-wrap;"></textarea>`
       )
       .setScrollFactor(0)
       .setDepth(6600)

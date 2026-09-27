@@ -19,6 +19,7 @@ describe('applyStageCompletion', () => {
     const { data, reward } = applyStageCompletion(emptyProgressData(), SARAH_STAGE_5)
 
     expect(reward.xpAwarded).toBe(1000)
+    expect(reward.firstCompletion).toBe(true)
     expect(data.totalXp).toBe(1000)
     expect(data.completedLevels).toEqual([5])
     expect(data.badges).toEqual(['stage-5'])
@@ -38,6 +39,7 @@ describe('applyStageCompletion', () => {
     const second = applyStageCompletion(first.data, SARAH_STAGE_5)
 
     expect(second.reward.xpAwarded).toBe(0)
+    expect(second.reward.firstCompletion).toBe(false)
     expect(second.data.totalXp).toBe(1000)
     expect(second.data.badges).toEqual(['stage-5'])
   })
@@ -50,6 +52,7 @@ describe('applyStageCompletion', () => {
     const second = applyStageCompletion(first.data, SARAH_STAGE_5)
 
     expect(second.reward.xpAwarded).toBe(300)
+    expect(second.reward.firstCompletion).toBe(false)
     expect(second.data.totalXp).toBe(1000)
   })
 
@@ -93,6 +96,7 @@ describe('applyStageCompletion', () => {
     })
 
     expect(reward.xpAwarded).toBe(0)
+    expect(reward.firstCompletion).toBe(false)
     expect(data.completedLevels).toEqual([])
     expect(data.badges).toEqual([])
     expect(data.stageResults['1_sarah']?.completed).toBe(false)
@@ -114,6 +118,7 @@ describe('applyStageCompletion', () => {
     })
 
     expect(finished.reward.xpAwarded).toBe(300)
+    expect(finished.reward.firstCompletion).toBe(true)
     expect(finished.data.completedLevels).toEqual([1])
     expect(finished.data.stageResults['1_sarah']?.metrics).toEqual({ leadScore: 60 })
   })
@@ -197,6 +202,7 @@ describe('normalizeProgressData', () => {
     })
 
     expect(replayed.reward.xpAwarded).toBe(90)
+    expect(replayed.reward.firstCompletion).toBe(false)
     expect(replayed.data.totalXp).toBe(930)
   })
 })

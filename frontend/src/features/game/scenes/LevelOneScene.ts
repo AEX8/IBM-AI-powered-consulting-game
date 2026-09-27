@@ -71,6 +71,7 @@ export class LevelOneScene extends Phaser.Scene {
   private exitReady = false
   private exitRetryRequiresLeave = false
   private finalProgressSave?: Promise<boolean>
+  private firstLevelCompletion = false
   private finalClientScore?: {
     client: ClientDefinition
     leadScore: number
@@ -1226,6 +1227,9 @@ export class LevelOneScene extends Phaser.Scene {
       })
 
       if (!result.success) console.error('Could not save the Level 1 score:', result.error)
+      if (completesStage && result.success && result.data?.firstCompletion) {
+        this.firstLevelCompletion = true
+      }
       return result.success
     } catch (error) {
       console.error('Could not save the Level 1 score:', error)
@@ -1504,7 +1508,9 @@ export class LevelOneScene extends Phaser.Scene {
 
     window.localStorage.setItem(LEVEL_ONE_COMPLETION_KEY, 'true')
     window.localStorage.setItem('ibm-level-one-unlocked', 'true')
-    window.location.assign('/dashboard?completed=level-1')
+    window.location.assign(
+      this.firstLevelCompletion ? '/dashboard?completed=level-1' : '/dashboard'
+    )
   }
 
   private updateMovement(): void {
@@ -1704,6 +1710,8 @@ export class LevelOneScene extends Phaser.Scene {
 
     if (textarea) {
       textarea.value = this.notes
+      textarea.addEventListener('keydown', (event) => event.stopPropagation())
+      textarea.addEventListener('keyup', (event) => event.stopPropagation())
     }
 
     const saveX = notebookX + notebookWidth / 2 - 25

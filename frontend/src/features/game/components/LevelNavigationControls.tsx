@@ -125,6 +125,7 @@ export function LevelNavigationControls({ level, client, onOpenChange }: Props) 
             </div>
             <textarea
               aria-label={`Level ${level} consultant notes`}
+              autoFocus
               maxLength={1000}
               value={notes}
               onChange={(event) => setNotes(event.target.value)}

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     )
 
     // The submission is only complete when its shared progress is saved too.
-    await saveStageCompletion(uid, {
+    const reward = await saveStageCompletion(uid, {
       stageId: MEETING_PREP_STAGE_ID,
       personaKey,
       performance: scoring.totalScore >= SCORE_RESULTS.strong.min ? 'strong' : 'developing',
@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       totalScore: scoring.totalScore,
       resultLabel: scoring.resultLabel,
       feedback: scoring.feedback,
+      firstCompletion: reward.firstCompletion,
     })
   } catch (error) {
     console.error('Failed to save meeting prep submission:', error)

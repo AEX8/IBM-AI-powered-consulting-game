@@ -65,6 +65,7 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(false)
+  const [firstCompletion, setFirstCompletion] = useState(false)
   const [meetingOrderChoices, setMeetingOrderChoices] = useState<string[] | null>(null)
 
   // Demo build: lets the player pick or switch clients directly on this form,
@@ -153,11 +154,13 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
 
   async function finish() {
     if (!result) return
+    const firstClear = result.firstCompletion !== false
     setBusy(true)
     try {
       writePreparation(personaId)
       localStorage.setItem(COMPLETION_KEY, 'true')
-      sessionStorage.setItem(CELEBRATION_KEY, 'true')
+      if (firstClear) sessionStorage.setItem(CELEBRATION_KEY, 'true')
+      else sessionStorage.removeItem(CELEBRATION_KEY)
       window.dispatchEvent(new Event(COMPLETION_KEY))
     } catch {
       setError('Progress could not be saved. Please allow browser storage and try again.')
@@ -181,6 +184,7 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
     }
 
     setBusy(false)
+    setFirstCompletion(firstClear)
 
     if (preparedBothIds.length > 1) {
       setMeetingOrderChoices(preparedBothIds)
@@ -218,8 +222,8 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
         <div className={styles.content}>
           {!client ? <><h2>Select a client</h2><p>Choose who you are preparing to meet, above — this also sets who you will meet in the Level 4 client meeting.</p></>
           : finished ? <motion.div className={styles.finish} initial={{ scale: .8 }} animate={{ scale: 1 }}>
-            <span aria-hidden="true">★</span><h2>Level 4 unlocked</h2><p>Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.</p>
-            <a className={styles.primary} href="/dashboard?completed=level-3">Return home →</a>
+            <span aria-hidden="true">★</span><h2>{firstCompletion ? 'Level 4 unlocked' : 'Preparation saved'}</h2><p>{firstCompletion ? 'Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.' : 'Your preparation is saved. Return home to continue or replay the client meeting.'}</p>
+            <a className={styles.primary} href={firstCompletion ? '/dashboard?completed=level-3' : '/dashboard'}>Return home →</a>
           </motion.div>
           : step === 0 ? <>
             <h2>Company &amp; Industry</h2><p>{client.company} · {client.industry}</p>

@@ -33,6 +33,7 @@ const defaultGradePreparation: GradePreparation = async ({ personaId, objectives
 
   return {
     submissionId: sessionId,
+    firstCompletion: data.firstCompletion === true,
     feedback: Array.isArray(data.feedback)
       ? data.feedback.join('\n')
       : 'Your meeting preparation was saved successfully.',
@@ -118,6 +119,7 @@ export function LevelTwoGame({
       <LevelNavigationControls
         level={preparation ? 3 : 2}
         onOpenChange={(open) => {
+          if (gameRef.current?.input.keyboard) gameRef.current.input.keyboard.enabled = !open
           for (const scene of gameRef.current?.scene.getScenes(true) ?? []) {
             if (scene.input.keyboard) scene.input.keyboard.enabled = !open
           }
