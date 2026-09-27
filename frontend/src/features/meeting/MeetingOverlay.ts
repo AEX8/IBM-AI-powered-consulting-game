@@ -208,7 +208,12 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
       SCRIPTED_FOLLOWUP_REPLIES[followUpIndex] ??
       SCRIPTED_FOLLOWUP_REPLIES[SCRIPTED_FOLLOWUP_REPLIES.length - 1]!
 
-    return `<div class="l4-compose"><textarea data-reply readonly aria-label="Your prepared reply">${escapeHtml(nextFollowUp)}</textarea><button data-send aria-label="Send response" ${busy ? 'disabled' : ''}>➜</button>${showEnd ? `<button class="l4-end" data-end ${busy ? 'disabled' : ''}>End meeting</button>` : ''}</div>`
+    // Once the player can end the meeting, that becomes the only next action —
+    // no further scripted follow-up, so every Groq call in the room is one the
+    // player actually needs (rate limits are shared across both clients).
+    return showEnd
+      ? `<div class="l4-compose"><button class="l4-end" data-end ${busy ? 'disabled' : ''}>End meeting</button></div>`
+      : `<div class="l4-compose"><textarea data-reply readonly aria-label="Your prepared reply">${escapeHtml(nextFollowUp)}</textarea><button data-send aria-label="Send response" ${busy ? 'disabled' : ''}>➜</button></div>`
   }
 
   function feedbackHtml(meeting: MeetingResult): string {

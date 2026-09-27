@@ -60,7 +60,7 @@ export default function HomePage() {
         </h1>
 
         <p className="mt-4 max-w-xl text-base font-medium text-[#3d3d3d] sm:text-lg">
-          An AI-powered consulting training simulation. Work a real engagement end to end — find a
+          An AI-powered consulting training simulation. Work a real engagement end to end: find a
           lead, win the meeting, and close the deal.
         </p>
 

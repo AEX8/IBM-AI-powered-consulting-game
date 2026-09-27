@@ -80,8 +80,18 @@ export class LevelFourScene extends Phaser.Scene {
   private lastFootstepAt = 0
   private meetingSequenceActive = false
   private savedPrep: Record<string, SavedPrep> = {}
+  // True only while the meeting currently open has actually been passed —
+  // reset at the start of every meeting attempt. Closing without this set
+  // (an early close, or a failed assessment) must not advance to the next
+  // client; the player stays on the same one to retry.
+  private justPassedCurrentClient = false
 
-  constructor() {
+  constructor(
+    // Client keys (e.g. 'sarah') the server already has a passed Level 4
+    // meeting for — excluded from the queue so a returning player is never
+    // asked to redo a client they finished in an earlier session.
+    private readonly serverCompletedClientKeys: string[] = []
+  ) {
     super('LevelFourScene')
   }
 
@@ -204,9 +214,13 @@ export class LevelFourScene extends Phaser.Scene {
     try {
       const order = JSON.parse(window.localStorage.getItem(MEETING_ORDER_KEY) ?? 'null') as unknown
       const done = JSON.parse(window.localStorage.getItem(MEETING_DONE_KEY) ?? 'null') as unknown
-      const doneIds = new Set(
-        Array.isArray(done) ? done.filter((item): item is string => typeof item === 'string') : []
-      )
+      const serverDonePersonaIds = this.serverCompletedClientKeys
+        .map((key) => (key === 'sarah' || key === 'david' ? CLIENTS[key].personaId : null))
+        .filter((id): id is string => id !== null)
+      const doneIds = new Set([
+        ...(Array.isArray(done) ? done.filter((item): item is string => typeof item === 'string') : []),
+        ...serverDonePersonaIds,
+      ])
 
       if (Array.isArray(order)) {
         const queue = order
@@ -541,6 +555,7 @@ export class LevelFourScene extends Phaser.Scene {
     this.player.setVelocity(0)
     // The camera crops the seated player out naturally; opening a conversation
     // must never change the player's visibility.
+    this.justPassedCurrentClient = false
 
     this.meetingOverlay = openMeetingOverlay({
       client: {
@@ -550,7 +565,10 @@ export class LevelFourScene extends Phaser.Scene {
         opening: this.client.opening,
       },
       getPrep: () => this.currentPrep(),
-      onPassed: () => this.markCurrentClientDone(),
+      onPassed: () => {
+        this.justPassedCurrentClient = true
+        this.markCurrentClientDone()
+      },
       onClose: () => this.closeMeeting(),
     })
   }
@@ -599,15 +617,24 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   private closeMeeting(): void {
+    const passed = this.justPassedCurrentClient
+    this.justPassedCurrentClient = false
     this.meetingOverlay?.destroy()
     this.meetingOverlay = undefined
     this.cameras.main.pan(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 450, 'Sine.easeInOut')
     this.cameras.main.zoomTo(1, 450, 'Sine.easeInOut')
 
-    if (this.queue.length > 0) {
-      const [next, ...rest] = this.queue
-      this.queue = rest
-      this.switchToClient(next!)
+    // Closing without a pass (an early close, or a failed assessment) must
+    // leave the same client in place so the player can retry them, rather
+    // than silently skipping ahead to whoever is queued next.
+    if (passed) {
+      if (this.queue.length > 0) {
+        const [next, ...rest] = this.queue
+        this.queue = rest
+        this.switchToClient(next!)
+      } else {
+        this.game.events.emit('level-four:all-meetings-complete')
+      }
     }
     this.player
       .setTexture('level-four-player')

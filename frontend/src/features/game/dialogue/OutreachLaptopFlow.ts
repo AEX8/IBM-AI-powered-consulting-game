@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { clientKeyFromPersonaId } from '@/features/progress/clients'
 
 export type OutreachClient = {
   name: string
@@ -24,8 +25,16 @@ type LaptopStep = 'clients' | 'google' | 'results' | 'linkedin' | 'contact' | 'c
 
 type LaptopFlowOptions = {
   clients: OutreachClient[]
+  // Client keys (e.g. 'sarah') already contacted — their card is shown but
+  // disabled, so the player cannot repeat outreach with the same client.
+  completedClientKeys?: string[]
   onClose: () => void
   onEmailSent: (submission: OutreachEmailSubmission) => void
+}
+
+function isClientCompleted(client: OutreachClient, completedClientKeys: string[]): boolean {
+  const key = client.personaId ? clientKeyFromPersonaId(client.personaId) : null
+  return key !== null && completedClientKeys.includes(key)
 }
 
 const CLIENT_DETAILS: Record<
@@ -264,6 +273,7 @@ export function createOutreachLaptopFlow(
       .l2-close{position:absolute;right:14px;top:12px;z-index:5;width:42px;height:42px;border:3px solid #161616;border-radius:50%;background:#fff;font-size:27px;cursor:pointer}
       .l2-title{margin:0 0 8px;color:#001d6c;font-size:28px}.l2-subtitle{margin:0 0 24px;color:#676c70;font-size:16px}
       .l2-cards{display:grid;height:100%;grid-template-columns:repeat(2,1fr);align-items:center;gap:55px;padding:20px 62px;box-sizing:border-box}.l2-card{display:flex;height:450px;flex-direction:column;align-items:center;justify-content:center;border:0;background:transparent;padding:0;cursor:pointer}.l2-card.selected .l2-portrait{border-width:8px;border-color:#001d6c;background:#e7f2f8}.l2-portrait{display:grid;width:205px;height:300px;place-items:center;border:5px solid #1f1f1f;background:#f4f7f9;box-sizing:border-box}.l2-card img{height:255px;max-width:190px;object-fit:contain}.l2-card-copy{width:205px;margin-top:14px;border:4px solid #1f1f1f;border-radius:14px;background:#cbd0d4;padding:9px 8px;box-sizing:border-box}.l2-card h3{margin:0 0 4px;font-size:19px}.l2-card p{margin:2px;text-align:center;color:#505458;font-size:13px}
+      .l2-card:disabled,.l2-card.done{cursor:not-allowed}.l2-card.done{opacity:.5;filter:grayscale(1)}.l2-card.done:hover{transform:none;filter:grayscale(1)}.l2-card-done{color:#001d6c!important;font-weight:800}
       .l2-browser{height:100%;background:#fff}.l2-browser-top{height:51px;border-bottom:1px solid #aeb4b8;background:#eef1f3}.l2-browserbar{display:flex;align-items:center;gap:12px;border-bottom:1px solid #aeb4b8;background:#eef1f3;padding:9px 18px;color:#6f7579;font-size:20px}.l2-url,.l2-input{width:100%;border:1px solid #9da4aa;border-radius:22px;background:#fff;padding:10px 16px;font-size:15px;box-sizing:border-box}.l2-tabs{height:30px;border-bottom:1px solid #c2c7ca;background:#eef1f3;background-image:repeating-linear-gradient(90deg,transparent 0 90px,#899095 90px 92px)}
       .l2-google{display:flex;height:360px;flex-direction:column;align-items:center;justify-content:center}.l2-google-logo{margin-bottom:28px;font-size:70px;font-weight:600;letter-spacing:-6px}.g-blue{color:#4285f4}.g-red{color:#ea4335}.g-yellow{color:#fbbc05}.g-green{color:#002d9c}.l2-searchbox{display:flex;width:545px;align-items:center;gap:13px;border:1px solid #d7dadd;border-radius:28px;background:#fff;padding:5px 9px 5px 17px;box-shadow:0 2px 7px #0002}.l2-searchbox .l2-input{border:0;padding:9px 0;outline:0}.l2-search-icon{border:0;background:none;font-size:19px;cursor:pointer}.l2-search-tools{display:flex;gap:8px;color:#4e5357;font-size:18px}.l2-shortcuts{display:flex;max-width:570px;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:25px}.l2-chip{border:1px solid #d5d9dc;border-radius:20px;background:#f7f8f9;padding:8px 14px;color:#62676b;font-size:13px}.l2-chip:disabled{cursor:default;opacity:.78}
       .l2-results{height:100%;background:#fff}.l2-results-head{padding:15px 28px 8px;border-bottom:1px solid #e0e3e5}.l2-results-search{display:flex;align-items:center;gap:12px}.l2-mini-logo{font-size:22px;font-weight:700}.l2-results-search .l2-input{max-width:520px;box-shadow:0 1px 5px #0002}.l2-result-tabs{display:flex;gap:25px;margin:12px 0 0 42px;color:#63686c;font-size:13px}.l2-result-tabs strong{border-bottom:3px solid #1a73e8;padding-bottom:9px;color:#1a73e8}.l2-results-body{padding:20px 70px}.l2-result{display:block;width:570px;border:0;border-radius:10px;background:#fff;padding:12px;margin:-12px;text-align:left;cursor:pointer;box-sizing:border-box}.l2-result:hover h3{text-decoration:underline}.l2-result-source{display:flex;align-items:center;gap:9px;color:#42464a;font-size:13px}.l2-li-badge{display:grid;width:24px;height:24px;place-items:center;border-radius:3px;background:#0a66c2;color:#fff;font-weight:800}.l2-result h3{margin:7px 0;color:#1a0dab;font-size:20px;font-weight:500}.l2-result p{margin:6px 0;color:#4f5356;font-size:14px;line-height:1.45}.l2-sitelinks{display:grid;width:520px;grid-template-columns:1fr 1fr;gap:0 32px;margin-top:18px}.l2-sitelinks div{border-top:1px solid #d7dadd;padding:10px 0;color:#1a0dab;font-size:13px}
@@ -312,18 +322,20 @@ export function createOutreachLaptopFlow(
     const details = client ? detailsFor(client) : undefined
 
     if (step === 'clients') {
+      const completedClientKeys = options.completedClientKeys ?? []
       const cards = options.clients
         .map((item, index) => {
           const portrait = portraitFor(item)
           const itemDetails = detailsFor(item)
-          return `<button class="l2-card ${selectedClient?.name === item.name ? 'selected' : ''}" data-client="${index}"><span class="l2-portrait"><img src="/assets/characters/npcs/${portrait}" alt=""></span><span class="l2-card-copy"><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(itemDetails.role)}</p><p>${escapeHtml(itemDetails.company)}</p></span></button>`
+          const done = isClientCompleted(item, completedClientKeys)
+          return `<button class="l2-card ${selectedClient?.name === item.name ? 'selected' : ''} ${done ? 'done' : ''}" data-client="${index}" ${done ? 'disabled' : ''}><span class="l2-portrait"><img src="/assets/characters/npcs/${portrait}" alt=""></span><span class="l2-card-copy"><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(itemDetails.role)}</p><p>${escapeHtml(itemDetails.company)}</p>${done ? '<p class="l2-card-done">Already contacted</p>' : ''}</span></button>`
         })
         .join('')
       root.innerHTML = shell(
         `<div class="l2-cards">${cards || '<p>No completed client conversations were found.</p>'}</div>`,
         `<button class="l2-button" data-action="continue" ${selectedClient ? '' : 'disabled'}>Research selected client</button>`
       )
-      root.querySelectorAll<HTMLElement>('[data-client]').forEach((card) => {
+      root.querySelectorAll<HTMLElement>('[data-client]:not(:disabled)').forEach((card) => {
         card.addEventListener('click', () => {
           const nextClient = options.clients[Number(card.dataset.client)]
           if (selectedClient?.name !== nextClient?.name) {

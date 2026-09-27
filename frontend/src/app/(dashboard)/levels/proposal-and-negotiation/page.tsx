@@ -4,6 +4,7 @@ import { ProposalPortal } from '@/features/proposal/components/ProposalPortal'
 import { ALL_PERSONA_KEYS, isPersonaKey, type PersonaKey } from '@/features/proposal/personas'
 
 const LEVEL_FOUR_STAGE_ID = 4
+const PROPOSAL_STAGE_ID = 5
 
 async function getAvailableClientKeys(requestedKey: PersonaKey | null): Promise<PersonaKey[]> {
   const session = await getServerSession()
@@ -35,9 +36,17 @@ export default async function ProposalAndNegotiationPage({
   const initialClientKey = requested && isPersonaKey(requested) ? requested : null
   const availableClientKeys = await getAvailableClientKeys(initialClientKey)
 
+  const session = await getServerSession()
+  const completedKeys = session ? await getCompletedClientKeys(session.uid, PROPOSAL_STAGE_ID) : []
+  const completedClientKeys = ALL_PERSONA_KEYS.filter((key) => completedKeys.includes(key))
+
   return (
     <main className="bg-warm-cream min-h-dvh w-full">
-      <ProposalPortal initialClientKey={initialClientKey} availableClientKeys={availableClientKeys} />
+      <ProposalPortal
+        initialClientKey={initialClientKey}
+        availableClientKeys={availableClientKeys}
+        completedClientKeys={completedClientKeys}
+      />
     </main>
   )
 }

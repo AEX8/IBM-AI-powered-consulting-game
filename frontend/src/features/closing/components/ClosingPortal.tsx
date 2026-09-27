@@ -77,8 +77,8 @@ const CONCERN_ANSWERS: Partial<Record<PersonaKey, readonly [string, string]>> = 
     'You and your finance lead can sign off this week. The contract includes a review checkpoint at six weeks, and if timelines slip, the second payment moves with the delivery date rather than being due upfront.',
   ],
   david: [
-    'The $30,000 fixed price covers store and online data only, the two sources taking most of your reconciliation time. Limiting phase one to those sources makes six weeks realistic and should start saving your team time within that window. If delivery slips for reasons on our side, the second payment moves with delivery rather than falling due on a fixed date.',
-    "You and your technology lead can approve this together this week — no wider committee needed for a phase this size. If delivery slips for reasons on our side, you don't pay the second instalment until the working view is actually delivered, and if any new requirement comes up beyond store and online data, we'll scope and cost it separately before starting rather than adding it to this fixed price.",
+    'The $30,000 price covers store and online data only, which is why six weeks is realistic. If anything on our side delays delivery, the second payment moves with it rather than being due on a fixed date.',
+    "You and your technology lead can approve this together this week — no wider committee needed. If delivery slips on our side, you don't pay until it's delivered. Anything beyond store and online data gets scoped and costed separately first.",
   ],
 }
 
@@ -121,19 +121,61 @@ async function request(path: string, body?: unknown): Promise<unknown> {
   return data
 }
 
+// The only two clients this stage is ever played with.
+const CLOSING_CLIENT_KEYS: PersonaKey[] = ['sarah', 'david']
+
+function AlreadyCompletedPopup() {
+  return (
+    <div className="fixed inset-0 z-[9500] grid place-items-center bg-[#17212a]/70 p-6">
+      <div className="border-charcoal bg-cloud-white w-[min(420px,92vw)] rounded-2xl border-[5px] p-8 text-center shadow-[8px_10px_0_#16161633]">
+        <h2 className="text-dark-blue text-xl font-extrabold">Already completed</h2>
+        <p className="text-charcoal mt-3 text-sm font-medium">
+          You&rsquo;ve already closed the deal with both clients in Level 6.
+        </p>
+        <a
+          href="/dashboard"
+          className="border-charcoal bg-dark-blue mt-5 inline-block rounded-lg border-[3px] px-6 py-3 text-sm font-extrabold text-white"
+        >
+          Return to lobby
+        </a>
+      </div>
+    </div>
+  )
+}
+
 export function ClosingPortal({
   availableClientKeys,
+  completedClientKeys = [],
   initialClientKey,
 }: {
   availableClientKeys: PersonaKey[]
+  // Client keys already closed — shown greyed out and disabled in the
+  // switcher so the player cannot reopen a signed/lost deal from here.
+  completedClientKeys?: PersonaKey[]
   initialClientKey: PersonaKey | null
 }) {
   const stored = useSyncExternalStore(subscribe, selectedClient, () => null)
   const [picked, setPicked] = useState<PersonaKey | null>(null)
   const [portfolio, setPortfolio] = useState(false)
   const preferred = picked ?? initialClientKey ?? stored
+  const notCompleted = availableClientKeys.filter((key) => !completedClientKeys.includes(key))
   const active =
-    preferred && availableClientKeys.includes(preferred) ? preferred : availableClientKeys[0]
+    preferred && availableClientKeys.includes(preferred) && !completedClientKeys.includes(preferred)
+      ? preferred
+      : (notCompleted[0] ?? availableClientKeys[0])
+
+  // Captured once from the server-fetched props at page load, not recomputed
+  // as the player works — so this only appears when they land on the page
+  // with both already closed (a retry), never right after closing the second
+  // deal in the same visit.
+  const [showAlreadyDone] = useState(() =>
+    CLOSING_CLIENT_KEYS.every((key) => completedClientKeys.includes(key))
+  )
+
+  if (showAlreadyDone) {
+    return <AlreadyCompletedPopup />
+  }
+
   return (
     <div className={styles.portal}>
       <header className="bg-light-blue flex flex-wrap items-center justify-between gap-3 px-6 py-3">
@@ -141,20 +183,31 @@ export function ClosingPortal({
           Level 6 · Close the Deal
         </p>
         <nav aria-label="Choose client" className="flex flex-wrap items-center gap-2">
-          {availableClientKeys.map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-current={!portfolio && active === key ? 'true' : undefined}
-              onClick={() => {
-                setPicked(key)
-                setPortfolio(false)
-              }}
-              className={`rounded-full px-3 py-1 text-xs font-extrabold ${!portfolio && active === key ? 'text-dark-blue bg-white' : 'bg-white/20 text-white'}`}
-            >
-              {PERSONAS[key].name}
-            </button>
-          ))}
+          {availableClientKeys.map((key) => {
+            const isDone = completedClientKeys.includes(key)
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={isDone}
+                aria-current={!portfolio && active === key ? 'true' : undefined}
+                title={isDone ? 'This deal is already closed — see My contracts' : undefined}
+                onClick={() => {
+                  setPicked(key)
+                  setPortfolio(false)
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-extrabold ${
+                  isDone
+                    ? 'cursor-not-allowed bg-white/10 text-white/50 grayscale'
+                    : !portfolio && active === key
+                      ? 'text-dark-blue bg-white'
+                      : 'bg-white/20 text-white'
+                }`}
+              >
+                {PERSONAS[key].name}
+              </button>
+            )
+          })}
           <button
             type="button"
             className="rounded-full border border-white/70 px-3 py-1 text-xs font-bold text-white"

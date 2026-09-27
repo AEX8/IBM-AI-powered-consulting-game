@@ -62,22 +62,40 @@ export function PreparationPanel({
   onClose,
   gradePreparation,
   availableClientKeys = [],
+  completedClientKeys = [],
 }: {
   onClose: () => void
   gradePreparation?: GradePreparation
   availableClientKeys?: string[]
+  // Client keys already prepared this run — shown greyed out and disabled so
+  // the player cannot repeat a client they've already finished.
+  completedClientKeys?: string[]
 }) {
   function isUnlocked(id: string): boolean {
     const key = clientKeyFromPersonaId(id)
     return key !== null && availableClientKeys.includes(key)
   }
 
+  function isCompleted(id: string): boolean {
+    const key = clientKeyFromPersonaId(id)
+    return key !== null && completedClientKeys.includes(key)
+  }
+
   const [personaId, setPersonaId] = useState(() => {
     const stored = readClient()
-    if (stored && isUnlocked(stored)) return stored
-    return Object.keys(preparationContent).find((id) => isUnlocked(id)) ?? ''
+    if (stored && isUnlocked(stored) && !isCompleted(stored)) return stored
+    const firstSelectable = Object.keys(preparationContent).find(
+      (id) => isUnlocked(id) && !isCompleted(id)
+    )
+    if (firstSelectable) return firstSelectable
+    return stored && isUnlocked(stored) ? stored : (Object.keys(preparationContent).find(isUnlocked) ?? '')
   })
   const client = preparationContent[personaId]
+  // False once every client the player can currently prepare has already been
+  // prepared — the form must not let an already-finished client be re-edited.
+  const hasSelectableClient = Object.keys(preparationContent).some(
+    (id) => isUnlocked(id) && !isCompleted(id)
+  )
   const [step, setStep] = useState(0)
   const [objectives, setObjectives] = useState<string[]>(() => readDraft(personaId, 'objectives'))
   const [questions, setQuestions] = useState<string[]>(() => readDraft(personaId, 'questions'))
@@ -92,7 +110,7 @@ export function PreparationPanel({
   // instead of only inheriting whatever was chosen back in Level 2. Only clients
   // the player has actually completed Outreach with are selectable.
   function selectClient(id: string) {
-    if (id === personaId || !isUnlocked(id)) return
+    if (id === personaId || !isUnlocked(id) || isCompleted(id)) return
 
     setPersonaId(id)
     setStep(0)
@@ -255,21 +273,29 @@ export function PreparationPanel({
         <div className={styles.screen}>
           <header>
             <small>LEVEL 3 · MEETING PREPARATION</small>
-            <h1>{finished ? 'Ready for your meeting!' : steps[step]}</h1>
-            {client && (
+            <h1>
+              {!hasSelectableClient ? 'Already prepared' : finished ? 'Ready for your meeting!' : steps[step]}
+            </h1>
+            {hasSelectableClient && client && (
               <p>
                 {client.name} · {client.industry}
               </p>
             )}
-            {!finished && (
+            {!finished && hasSelectableClient && (
               <div className={styles.clientSwitcher} role="group" aria-label="Change client">
                 {Object.entries(preparationContent).map(([id, info]) => (
                   <button
                     key={id}
                     type="button"
                     aria-pressed={id === personaId}
-                    disabled={busy || !isUnlocked(id)}
-                    title={isUnlocked(id) ? undefined : 'Complete Outreach with this client first'}
+                    disabled={busy || !isUnlocked(id) || isCompleted(id)}
+                    title={
+                      !isUnlocked(id)
+                        ? 'Complete Outreach with this client first'
+                        : isCompleted(id)
+                          ? 'You have already prepared this client'
+                          : undefined
+                    }
                     onClick={() => selectClient(id)}
                   >
                     {info.name}
@@ -278,21 +304,34 @@ export function PreparationPanel({
               </div>
             )}
           </header>
-          <nav aria-label="Preparation steps">
-            {steps.map((label, index) => (
-              <button
-                key={label}
-                disabled={busy || finished || index > step || index === 3}
-                onClick={() => setStep(index)}
-                aria-current={index === step ? 'step' : undefined}
-              >
-                {index + 1}
-                <span>{label}</span>
-              </button>
-            ))}
-          </nav>
+          {hasSelectableClient && (
+            <nav aria-label="Preparation steps">
+              {steps.map((label, index) => (
+                <button
+                  key={label}
+                  disabled={busy || finished || index > step || index === 3}
+                  onClick={() => setStep(index)}
+                  aria-current={index === step ? 'step' : undefined}
+                >
+                  {index + 1}
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
+          )}
           <div className={styles.content}>
-            {!client ? (
+            {!hasSelectableClient ? (
+              <>
+                <h2>Nothing left to prepare</h2>
+                <p>
+                  You&rsquo;ve already prepared every client you can right now. Head back to the
+                  office and continue on to the client meeting.
+                </p>
+                <a className={styles.primary} href="/dashboard">
+                  Return home →
+                </a>
+              </>
+            ) : !client ? (
               <>
                 <h2>Select a client</h2>
                 <p>
@@ -377,7 +416,7 @@ export function PreparationPanel({
               </p>
             )}
           </div>
-          {client && !finished && (
+          {hasSelectableClient && client && !finished && (
             <footer>
               {step > 0 && (
                 <button

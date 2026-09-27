@@ -64,7 +64,13 @@ export class LevelTwoScene extends Phaser.Scene {
   private notes = ''
   private firstLevelCompletion = false
 
-  constructor(private readonly preparationMode = false) {
+  constructor(
+    private readonly preparationMode = false,
+    // Client keys (e.g. 'sarah') already completed for whichever stage this
+    // scene represents — Outreach in play mode, Preparation in prep mode.
+    // Used only to grey out an already-finished client in the picker.
+    private readonly completedClientKeys: string[] = []
+  ) {
     super('LevelTwoScene')
   }
 
@@ -611,6 +617,7 @@ export class LevelTwoScene extends Phaser.Scene {
     // submission boundary for grading and the lunch-break screen.
     const outreachFlow = createOutreachLaptopFlow(this, {
       clients,
+      completedClientKeys: this.completedClientKeys,
       onClose: () => this.closeLaptopOverlay(),
       onEmailSent: (submission) => this.handleOutreachEmailSent(submission),
     })

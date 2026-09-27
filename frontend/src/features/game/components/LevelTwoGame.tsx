@@ -48,12 +48,17 @@ export function LevelTwoGame({
   preparation = false,
   gradePreparation = defaultGradePreparation,
   availableClientKeys = [],
+  completedClientKeys = [],
 }: {
   preparation?: boolean
   gradePreparation?: GradePreparation
   // Client keys (e.g. 'sarah') the player has completed Outreach with — only
   // these can be selected for meeting preparation. Ignored outside Level 3.
   availableClientKeys?: string[]
+  // Client keys already completed for THIS stage (Outreach in play mode,
+  // Preparation in prep mode) — shown greyed out and disabled so the player
+  // cannot repeat the same client.
+  completedClientKeys?: string[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<Phaser.Game | undefined>(undefined)
@@ -95,7 +100,7 @@ export function LevelTwoGame({
           width: GAME_WIDTH,
           height: GAME_HEIGHT,
         },
-        scene: new LevelTwoScene(preparation),
+        scene: new LevelTwoScene(preparation, completedClientKeys),
       })
       gameRef.current = game
       game.events.on('preparation:open', () => {
@@ -111,7 +116,7 @@ export function LevelTwoGame({
       game?.destroy(true)
       gameRef.current = undefined
     }
-  }, [preparation])
+  }, [preparation, completedClientKeys])
 
   return (
     <div className="h-dvh w-screen overflow-hidden bg-[#161616]">
@@ -156,6 +161,7 @@ export function LevelTwoGame({
         <PreparationPanel
           gradePreparation={gradePreparation}
           availableClientKeys={availableClientKeys}
+          completedClientKeys={completedClientKeys}
           onClose={() => {
             setPreparationOpen(false)
             gameRef.current?.events.emit('preparation:close')

@@ -7,11 +7,17 @@ type HeaderClient = {
 
 type ProposalHeaderProps = {
   clients: HeaderClient[]
+  completedKeys?: PersonaKey[]
   activeKey: PersonaKey | null
   onSelectClient: (key: PersonaKey) => void
 }
 
-export function ProposalHeader({ clients, activeKey, onSelectClient }: ProposalHeaderProps) {
+export function ProposalHeader({
+  clients,
+  completedKeys = [],
+  activeKey,
+  onSelectClient,
+}: ProposalHeaderProps) {
   return (
     <div className="bg-light-blue flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 py-3">
       <p className="text-xs font-extrabold tracking-[0.12em] text-white uppercase">
@@ -27,17 +33,22 @@ export function ProposalHeader({ clients, activeKey, onSelectClient }: ProposalH
           <ul className="flex flex-wrap gap-1.5">
             {clients.map((client) => {
               const isActive = client.key === activeKey
+              const isDone = completedKeys.includes(client.key)
 
               return (
                 <li key={client.key}>
                   <button
                     type="button"
+                    disabled={isDone}
                     onClick={() => onSelectClient(client.key)}
                     aria-current={isActive ? 'true' : undefined}
+                    title={isDone ? 'You have already submitted a proposal for this client' : undefined}
                     className={`rounded-full px-3 py-1 text-xs font-extrabold transition ${
-                      isActive
-                        ? 'text-dark-blue bg-white'
-                        : 'bg-white/20 text-white hover:bg-white/30'
+                      isDone
+                        ? 'cursor-not-allowed bg-white/10 text-white/50 grayscale'
+                        : isActive
+                          ? 'text-dark-blue bg-white'
+                          : 'bg-white/20 text-white hover:bg-white/30'
                     }`}
                   >
                     {client.name}
