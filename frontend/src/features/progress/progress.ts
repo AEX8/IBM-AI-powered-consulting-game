@@ -86,6 +86,7 @@ export type StageCompletionInput = {
 export type StageCompletionReward = {
   xpAwarded: number
   skillsAwarded: SkillDeltas
+  firstCompletion: boolean
 }
 
 export function emptySkillStats(): SkillStats {
@@ -217,6 +218,7 @@ export function applyStageCompletion(
   const key = stageResultKey(input.stageId, input.personaKey)
   const previous = current.stageResults[key]
   const completesStage = input.completesStage !== false
+  const firstCompletion = completesStage && !current.completedLevels.includes(input.stageId)
 
   const xpForThisRun = completesStage ? xpForStage(input.stageId, input.performance) : 0
   // A recovered earlier stage already has its minimum XP included in totalXp.
@@ -277,7 +279,7 @@ export function applyStageCompletion(
         },
       },
     },
-    reward: { xpAwarded, skillsAwarded },
+    reward: { xpAwarded, skillsAwarded, firstCompletion },
   }
 }
 

@@ -1,12 +1,24 @@
 /** Client-specific information and selectable meeting preparation options. */
-export const preparationContent: Record<string, {
-  name: string; industry: string; company: string; situation: string;
-  stakeholders: string; objectives: string[]; questions: string[]
-}> = {
+export const preparationContent: Record<
+  string,
+  {
+    name: string
+    industry: string
+    company: string
+    situation: string
+    stakeholders: string
+    objectives: string[]
+    questions: string[]
+  }
+> = {
   'test-level-1': {
-    name: 'Sarah Chen', industry: 'Manufacturing', company: 'ACMD Manufacturing',
-    situation: 'Supply-chain delays and disconnected operational data are causing missed delivery targets, customer compensation and manual reporting. Sarah wants better visibility without significantly disrupting existing systems.',
-    stakeholders: 'Sarah is Chief Operating Officer. Supply chain, logistics, inventory, customer service, IT and finance teams rely on separate inventory/order systems and logistics spreadsheets.',
+    name: 'Sarah Chen',
+    industry: 'Manufacturing',
+    company: 'ACMD Manufacturing',
+    situation:
+      'Supply-chain delays and disconnected operational data are causing missed delivery targets, customer compensation and manual reporting. Sarah wants better visibility without significantly disrupting existing systems.',
+    stakeholders:
+      'Sarah is Chief Operating Officer. Supply chain, logistics, inventory, customer service, IT and finance teams rely on separate inventory/order systems and logistics spreadsheets.',
     objectives: [
       'Improve supply chain visibility and reduce delivery delays without significantly disrupting existing systems.',
       'Replace all existing operational systems with a new platform.',
@@ -24,9 +36,13 @@ export const preparationContent: Record<string, {
     ],
   },
   'test-level-2': {
-    name: 'David Palte', industry: 'Retail', company: 'Meridian Retail Group',
-    situation: 'Customer information is fragmented across stores, online, mobile and loyalty systems. Conflicting dashboards make customer value, churn and promotion analysis unreliable. David wants measurable value quickly, not a large transformation program.',
-    stakeholders: 'David is Chief Technology Officer. Marketing, e-commerce, store operations, loyalty, data/analytics and a strong internal IT team need a shared customer view across existing platforms.',
+    name: 'David Palte',
+    industry: 'Retail',
+    company: 'Meridian Retail Group',
+    situation:
+      'Customer information is fragmented across stores, online, mobile and loyalty systems. Conflicting dashboards make customer value, churn and promotion analysis unreliable. David wants measurable value quickly, not a large transformation program.',
+    stakeholders:
+      'David is Chief Technology Officer. Marketing, e-commerce, store operations, loyalty, data/analytics and a strong internal IT team need a shared customer view across existing platforms.',
     objectives: [
       'Create a reliable, integrated view of customer data across channels while delivering measurable value quickly.',
       "Replace Meridian's entire technology infrastructure with a new system.",
@@ -53,5 +69,9 @@ export type PreparationSubmission = {
 
 /** Grading service interface. A successful response must include
  * the saved submission ID, so a network failure cannot unlock the next room. */
-export type PreparationResult = { submissionId: string; feedback: string }
+export type PreparationResult = {
+  submissionId: string
+  feedback: string
+  firstCompletion?: boolean
+}
 export type GradePreparation = (submission: PreparationSubmission) => Promise<PreparationResult>

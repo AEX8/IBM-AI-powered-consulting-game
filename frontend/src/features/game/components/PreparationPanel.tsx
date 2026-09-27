@@ -5,7 +5,11 @@ import { motion } from 'motion/react'
 import { clientKeyFromPersonaId } from '@/features/progress/clients'
 import { getCompletedClientKeysAction } from '@/features/progress/actions/progress.actions'
 import { MeetingOrderPopup } from './MeetingOrderPopup'
-import { preparationContent, type GradePreparation, type PreparationResult } from './preparationContent'
+import {
+  preparationContent,
+  type GradePreparation,
+  type PreparationResult,
+} from './preparationContent'
 import styles from './PreparationPanel.module.css'
 
 const SELECTION_KEY = 'ibm-selected-outreach-client'
@@ -28,7 +32,9 @@ function readClient(): string {
   try {
     const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) ?? 'null')
     return typeof saved?.personaId === 'string' ? saved.personaId : ''
-  } catch { return '' }
+  } catch {
+    return ''
+  }
 }
 
 function readDraft(personaId: string, kind: 'objectives' | 'questions'): string[] {
@@ -36,16 +42,30 @@ function readDraft(personaId: string, kind: 'objectives' | 'questions'): string[
     const saved = JSON.parse(localStorage.getItem(`ibm-preparation-draft:${personaId}`) ?? 'null')
     const allowed = preparationContent[personaId]?.[kind] ?? []
     return Array.isArray(saved?.[kind])
-      ? [...new Set<string>(saved[kind].filter((value: unknown) => typeof value === 'string' && allowed.includes(value)))].slice(0, 3)
+      ? [
+          ...new Set<string>(
+            saved[kind].filter(
+              (value: unknown) => typeof value === 'string' && allowed.includes(value)
+            )
+          ),
+        ].slice(0, 3)
       : []
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
 /** The native overlay stays outside Phaser's camera transforms. The room's own
  * sitting animation still runs before this UI appears. Grading is injected through
  * one typed adapter, avoiding guesses about an endpoint that has not been supplied. */
-export function PreparationPanel({ onClose, gradePreparation, availableClientKeys = [] }: {
-  onClose: () => void; gradePreparation?: GradePreparation; availableClientKeys?: string[]
+export function PreparationPanel({
+  onClose,
+  gradePreparation,
+  availableClientKeys = [],
+}: {
+  onClose: () => void
+  gradePreparation?: GradePreparation
+  availableClientKeys?: string[]
 }) {
   function isUnlocked(id: string): boolean {
     const key = clientKeyFromPersonaId(id)
@@ -65,6 +85,7 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(false)
+  const [firstCompletion, setFirstCompletion] = useState(false)
   const [meetingOrderChoices, setMeetingOrderChoices] = useState<string[] | null>(null)
 
   // Demo build: lets the player pick or switch clients directly on this form,
@@ -98,7 +119,10 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
   useEffect(() => {
     if (!personaId) return
     try {
-      localStorage.setItem(`ibm-preparation-draft:${personaId}`, JSON.stringify({ objectives, questions }))
+      localStorage.setItem(
+        `ibm-preparation-draft:${personaId}`,
+        JSON.stringify({ objectives, questions })
+      )
     } catch {
       // Selection remains usable in memory; completion separately requires a
       // successful save and reports a visible error if browser storage is blocked.
@@ -111,7 +135,9 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
     const selected = kind === 'objectives' ? objectives : questions
     const update = kind === 'objectives' ? setObjectives : setQuestions
     if (!selected.includes(value) && selected.length >= 3) return
-    update(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value])
+    update(
+      selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]
+    )
     setResult(null)
     setError('')
   }
@@ -121,7 +147,9 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
     setStep(3)
     setError('')
     if (!gradePreparation) {
-      setError('Preparation review is not available yet. Your choices are kept here so you can return and revise them.')
+      setError(
+        'Preparation review is not available yet. Your choices are kept here so you can return and revise them.'
+      )
       return
     }
     setBusy(true)
@@ -132,8 +160,12 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
       }
       setResult(response)
     } catch {
-      setError('Your preparation could not be reviewed. Please try again; no progress has been marked complete.')
-    } finally { setBusy(false) }
+      setError(
+        'Your preparation could not be reviewed. Please try again; no progress has been marked complete.'
+      )
+    } finally {
+      setBusy(false)
+    }
   }
 
   // Both clients share one Level 4 meeting room, so their prep is stored per
@@ -142,7 +174,10 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
   function writePreparation(id: string) {
     const existing = JSON.parse(localStorage.getItem(PREPARATION_KEY) ?? 'null')
     const map = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {}
-    localStorage.setItem(PREPARATION_KEY, JSON.stringify({ ...map, [id]: { objectives, questions } }))
+    localStorage.setItem(
+      PREPARATION_KEY,
+      JSON.stringify({ ...map, [id]: { objectives, questions } })
+    )
   }
 
   function writeMeetingOrder(order: string[]) {
@@ -153,11 +188,13 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
 
   async function finish() {
     if (!result) return
+    const firstClear = result.firstCompletion !== false
     setBusy(true)
     try {
       writePreparation(personaId)
       localStorage.setItem(COMPLETION_KEY, 'true')
-      sessionStorage.setItem(CELEBRATION_KEY, 'true')
+      if (firstClear) sessionStorage.setItem(CELEBRATION_KEY, 'true')
+      else sessionStorage.removeItem(CELEBRATION_KEY)
       window.dispatchEvent(new Event(COMPLETION_KEY))
     } catch {
       setError('Progress could not be saved. Please allow browser storage and try again.')
@@ -181,6 +218,7 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
     }
 
     setBusy(false)
+    setFirstCompletion(firstClear)
 
     if (preparedBothIds.length > 1) {
       setMeetingOrderChoices(preparedBothIds)
@@ -196,66 +234,202 @@ export function PreparationPanel({ onClose, gradePreparation, availableClientKey
     setFinished(true)
   }
 
-  return <div className={styles.overlay} onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()}>
-    <motion.section className={styles.laptop} role="dialog" aria-modal="true" aria-label="Meeting preparation"
-      initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
-      <div className={styles.camera} aria-hidden="true" />
-      <button className={styles.close} onClick={onClose} aria-label="Return to office">×</button>
-      <div className={styles.screen}>
-        <header><small>LEVEL 3 · MEETING PREPARATION</small><h1>{finished ? 'Ready for your meeting!' : steps[step]}</h1>
-          {client && <p>{client.name} · {client.industry}</p>}
-          {!finished && <div className={styles.clientSwitcher} role="group" aria-label="Change client">
-            {Object.entries(preparationContent).map(([id, info]) => (
-              <button key={id} type="button" aria-pressed={id === personaId} disabled={busy || !isUnlocked(id)}
-                title={isUnlocked(id) ? undefined : 'Complete Outreach with this client first'}
-                onClick={() => selectClient(id)}>{info.name}</button>
+  return (
+    <div
+      className={styles.overlay}
+      onKeyDown={(event) => event.stopPropagation()}
+      onKeyUp={(event) => event.stopPropagation()}
+    >
+      <motion.section
+        className={styles.laptop}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Meeting preparation"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className={styles.camera} aria-hidden="true" />
+        <button className={styles.close} onClick={onClose} aria-label="Return to office">
+          ×
+        </button>
+        <div className={styles.screen}>
+          <header>
+            <small>LEVEL 3 · MEETING PREPARATION</small>
+            <h1>{finished ? 'Ready for your meeting!' : steps[step]}</h1>
+            {client && (
+              <p>
+                {client.name} · {client.industry}
+              </p>
+            )}
+            {!finished && (
+              <div className={styles.clientSwitcher} role="group" aria-label="Change client">
+                {Object.entries(preparationContent).map(([id, info]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={id === personaId}
+                    disabled={busy || !isUnlocked(id)}
+                    title={isUnlocked(id) ? undefined : 'Complete Outreach with this client first'}
+                    onClick={() => selectClient(id)}
+                  >
+                    {info.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </header>
+          <nav aria-label="Preparation steps">
+            {steps.map((label, index) => (
+              <button
+                key={label}
+                disabled={busy || finished || index > step || index === 3}
+                onClick={() => setStep(index)}
+                aria-current={index === step ? 'step' : undefined}
+              >
+                {index + 1}
+                <span>{label}</span>
+              </button>
             ))}
-          </div>}
-        </header>
-        <nav aria-label="Preparation steps">{steps.map((label, index) => <button key={label}
-          disabled={busy || finished || index > step || index === 3} onClick={() => setStep(index)}
-          aria-current={index === step ? 'step' : undefined}>{index + 1}<span>{label}</span></button>)}</nav>
-        <div className={styles.content}>
-          {!client ? <><h2>Select a client</h2><p>Choose who you are preparing to meet, above — this also sets who you will meet in the Level 4 client meeting.</p></>
-          : finished ? <motion.div className={styles.finish} initial={{ scale: .8 }} animate={{ scale: 1 }}>
-            <span aria-hidden="true">★</span><h2>Level 4 unlocked</h2><p>Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.</p>
-            <a className={styles.primary} href="/dashboard?completed=level-3">Return home →</a>
-          </motion.div>
-          : step === 0 ? <>
-            <h2>Company &amp; Industry</h2><p>{client.company} · {client.industry}</p>
-            <h2>Business Situation</h2><p>{client.situation}</p>
-            <h2>Stakeholders &amp; Current Tech</h2><p>{client.stakeholders}</p>
-          </> : step === 1 || step === 2 ? <>
-            <p className={styles.hint}>{step === 1 ? 'What do you want to achieve in this meeting?' : 'What questions will help you understand this client?'} Select up to 3.</p>
-            <p aria-live="polite">{(step === 1 ? objectives : questions).length} / 3 selected</p>
-            {step === 2 && !client.questions.length && <p role="status">Question choices for this client are awaiting approval. You can review your objectives, or return to the office.</p>}
-            {(step === 1 ? client.objectives : client.questions).map((option, index) => {
-              const selected = step === 1 ? objectives : questions
-              return <button key={option} className={`${styles.option} ${selected.includes(option) ? styles.selected : ''}`}
-                aria-pressed={selected.includes(option)} disabled={!selected.includes(option) && selected.length >= 3}
-                onClick={() => toggle(option, step === 1 ? 'objectives' : 'questions')}>
-                <span>{selected.includes(option) ? '✓' : index + 1}</span>{option}</button>
-            })}
-          </> : <>
-            <h2>What You Prepared</h2><p>✓ Reviewed the Client File</p><p>✓ {objectives.length} meeting objectives</p><p>✓ {questions.length} prepared questions</p>
-            <h2>Feedback on Your Preparation</h2>
-            {busy && <p role="status">Preparing your review…</p>}
-            {result && <p className={styles.feedback}>{result.feedback}</p>}
-          </>}
-          {error && <p role="alert" className={styles.error}>{error}</p>}
+          </nav>
+          <div className={styles.content}>
+            {!client ? (
+              <>
+                <h2>Select a client</h2>
+                <p>
+                  Choose who you are preparing to meet, above — this also sets who you will meet in
+                  the Level 4 client meeting.
+                </p>
+              </>
+            ) : finished ? (
+              <motion.div className={styles.finish} initial={{ scale: 0.8 }} animate={{ scale: 1 }}>
+                <span aria-hidden="true">★</span>
+                <h2>{firstCompletion ? 'Level 4 unlocked' : 'Preparation saved'}</h2>
+                <p>
+                  {firstCompletion
+                    ? 'Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.'
+                    : 'Your preparation is saved. Return home to continue or replay the client meeting.'}
+                </p>
+                <a
+                  className={styles.primary}
+                  href={firstCompletion ? '/dashboard?completed=level-3' : '/dashboard'}
+                >
+                  Return home →
+                </a>
+              </motion.div>
+            ) : step === 0 ? (
+              <>
+                <h2>Company &amp; Industry</h2>
+                <p>
+                  {client.company} · {client.industry}
+                </p>
+                <h2>Business Situation</h2>
+                <p>{client.situation}</p>
+                <h2>Stakeholders &amp; Current Tech</h2>
+                <p>{client.stakeholders}</p>
+              </>
+            ) : step === 1 || step === 2 ? (
+              <>
+                <p className={styles.hint}>
+                  {step === 1
+                    ? 'What do you want to achieve in this meeting?'
+                    : 'What questions will help you understand this client?'}{' '}
+                  Select up to 3.
+                </p>
+                <p aria-live="polite">
+                  {(step === 1 ? objectives : questions).length} / 3 selected
+                </p>
+                {step === 2 && !client.questions.length && (
+                  <p role="status">
+                    Question choices for this client are awaiting approval. You can review your
+                    objectives, or return to the office.
+                  </p>
+                )}
+                {(step === 1 ? client.objectives : client.questions).map((option, index) => {
+                  const selected = step === 1 ? objectives : questions
+                  return (
+                    <button
+                      key={option}
+                      className={`${styles.option} ${selected.includes(option) ? styles.selected : ''}`}
+                      aria-pressed={selected.includes(option)}
+                      disabled={!selected.includes(option) && selected.length >= 3}
+                      onClick={() => toggle(option, step === 1 ? 'objectives' : 'questions')}
+                    >
+                      <span>{selected.includes(option) ? '✓' : index + 1}</span>
+                      {option}
+                    </button>
+                  )
+                })}
+              </>
+            ) : (
+              <>
+                <h2>What You Prepared</h2>
+                <p>✓ Reviewed the Client File</p>
+                <p>✓ {objectives.length} meeting objectives</p>
+                <p>✓ {questions.length} prepared questions</p>
+                <h2>Feedback on Your Preparation</h2>
+                {busy && <p role="status">Preparing your review…</p>}
+                {result && <p className={styles.feedback}>{result.feedback}</p>}
+              </>
+            )}
+            {error && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            )}
+          </div>
+          {client && !finished && (
+            <footer>
+              {step > 0 && (
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setStep(step - 1)
+                    setError('')
+                  }}
+                >
+                  ← Back
+                </button>
+              )}
+              {step === 0 && (
+                <button className={styles.primary} onClick={() => setStep(1)}>
+                  Set Meeting Objectives →
+                </button>
+              )}
+              {step === 1 && (
+                <button
+                  className={styles.primary}
+                  disabled={!objectives.length}
+                  onClick={() => setStep(2)}
+                >
+                  Prepare Questions →
+                </button>
+              )}
+              {step === 2 && (
+                <button className={styles.primary} disabled={!questions.length} onClick={review}>
+                  Review Preparation →
+                </button>
+              )}
+              {step === 3 && !result && (
+                <button
+                  className={styles.primary}
+                  disabled={busy || !gradePreparation}
+                  onClick={review}
+                >
+                  Retry review
+                </button>
+              )}
+              {step === 3 && result && (
+                <button className={styles.primary} disabled={busy} onClick={() => void finish()}>
+                  Enter Meeting →
+                </button>
+              )}
+            </footer>
+          )}
         </div>
-        {client && !finished && <footer>
-          {step > 0 && <button disabled={busy} onClick={() => { setStep(step - 1); setError('') }}>← Back</button>}
-          {step === 0 && <button className={styles.primary} onClick={() => setStep(1)}>Set Meeting Objectives →</button>}
-          {step === 1 && <button className={styles.primary} disabled={!objectives.length} onClick={() => setStep(2)}>Prepare Questions →</button>}
-          {step === 2 && <button className={styles.primary} disabled={!questions.length} onClick={review}>Review Preparation →</button>}
-          {step === 3 && !result && <button className={styles.primary} disabled={busy || !gradePreparation} onClick={review}>Retry review</button>}
-          {step === 3 && result && <button className={styles.primary} disabled={busy} onClick={() => void finish()}>Enter Meeting →</button>}
-        </footer>}
-      </div>
-    </motion.section>
-    {meetingOrderChoices && (
-      <MeetingOrderPopup personaIds={meetingOrderChoices} onConfirm={confirmMeetingOrder} />
-    )}
-  </div>
+      </motion.section>
+      {meetingOrderChoices && (
+        <MeetingOrderPopup personaIds={meetingOrderChoices} onConfirm={confirmMeetingOrder} />
+      )}
+    </div>
+  )
 }

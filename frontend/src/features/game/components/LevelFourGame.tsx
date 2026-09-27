@@ -64,6 +64,7 @@ export function LevelFourGame() {
       <LevelNavigationControls
         level={4}
         onOpenChange={(open) => {
+          if (gameRef.current?.input.keyboard) gameRef.current.input.keyboard.enabled = !open
           for (const scene of gameRef.current?.scene.getScenes(true) ?? []) {
             if (scene.input.keyboard) scene.input.keyboard.enabled = !open
           }
