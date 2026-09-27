@@ -1,18 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Navbar() {
-  const router = useRouter()
   const { user, signOut } = useAuth()
 
   const handleSignOut = async () => {
     await signOut()
-    router.replace('/auth/signin')
-    router.refresh()
+    window.location.replace('/')
   }
 
   return (
