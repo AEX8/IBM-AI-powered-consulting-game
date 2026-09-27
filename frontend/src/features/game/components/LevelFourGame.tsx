@@ -2,6 +2,7 @@
 
 import type Phaser from 'phaser'
 import { useEffect, useRef } from 'react'
+import { LevelNavigationControls } from './LevelNavigationControls'
 
 const GAME_WIDTH = 1440
 const GAME_HEIGHT = 720
@@ -13,6 +14,7 @@ const GAME_HEIGHT = 720
  */
 export function LevelFourGame() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const gameRef = useRef<Phaser.Game | undefined>(undefined)
 
   useEffect(() => {
     let game: Phaser.Game | undefined
@@ -29,7 +31,7 @@ export function LevelFourGame() {
         parent: containerRef.current,
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
-        backgroundColor: '#efe1c7',
+        backgroundColor: '#ffffff',
         autoFocus: true,
         dom: { createContainer: true },
         physics: {
@@ -44,6 +46,7 @@ export function LevelFourGame() {
         },
         scene: LevelFourScene,
       })
+      gameRef.current = game
     }
 
     void startGame()
@@ -51,12 +54,21 @@ export function LevelFourGame() {
     return () => {
       cancelled = true
       game?.destroy(true)
+      gameRef.current = undefined
     }
   }, [])
 
   return (
-    <div className="h-dvh w-screen overflow-hidden bg-[#2c2c2a]">
+    <div className="h-dvh w-screen overflow-hidden bg-[#161616]">
       <div ref={containerRef} className="relative h-full w-full overflow-hidden" />
+      <LevelNavigationControls
+        level={4}
+        onOpenChange={(open) => {
+          for (const scene of gameRef.current?.scene.getScenes(true) ?? []) {
+            if (scene.input.keyboard) scene.input.keyboard.enabled = !open
+          }
+        }}
+      />
     </div>
   )
 }

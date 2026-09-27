@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
+import { clientKeyFromPersonaId } from '@/features/progress/clients'
+import { getCompletedClientKeysAction } from '@/features/progress/actions/progress.actions'
+import { MeetingOrderPopup } from './MeetingOrderPopup'
 import { preparationContent, type GradePreparation, type PreparationResult } from './preparationContent'
 import styles from './PreparationPanel.module.css'
 
 const SELECTION_KEY = 'ibm-selected-outreach-client'
 const COMPLETION_KEY = 'ibm-level-three-completed'
 const CELEBRATION_KEY = 'ibm-level-three-celebration-pending'
+const PREPARATION_KEY = 'ibm-level-three-preparation'
+const MEETING_ORDER_KEY = 'ibm-level-four-meeting-order'
+const MEETING_DONE_KEY = 'ibm-level-four-meeting-done'
+const MEETING_PREP_STAGE_ID = 3
 const steps = ['Client File', 'Meeting Objectives', 'Prepare Questions', 'Preparation Feedback']
 
 // Demo build: lets the client switcher below persist a selection in the same
@@ -37,10 +44,19 @@ function readDraft(personaId: string, kind: 'objectives' | 'questions'): string[
 /** The native overlay stays outside Phaser's camera transforms. The room's own
  * sitting animation still runs before this UI appears. Grading is injected through
  * one typed adapter, avoiding guesses about an endpoint that has not been supplied. */
-export function PreparationPanel({ onClose, gradePreparation }: {
-  onClose: () => void; gradePreparation?: GradePreparation
+export function PreparationPanel({ onClose, gradePreparation, availableClientKeys = [] }: {
+  onClose: () => void; gradePreparation?: GradePreparation; availableClientKeys?: string[]
 }) {
-  const [personaId, setPersonaId] = useState(readClient)
+  function isUnlocked(id: string): boolean {
+    const key = clientKeyFromPersonaId(id)
+    return key !== null && availableClientKeys.includes(key)
+  }
+
+  const [personaId, setPersonaId] = useState(() => {
+    const stored = readClient()
+    if (stored && isUnlocked(stored)) return stored
+    return Object.keys(preparationContent).find((id) => isUnlocked(id)) ?? ''
+  })
   const client = preparationContent[personaId]
   const [step, setStep] = useState(0)
   const [objectives, setObjectives] = useState<string[]>(() => readDraft(personaId, 'objectives'))
@@ -49,11 +65,13 @@ export function PreparationPanel({ onClose, gradePreparation }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(false)
+  const [meetingOrderChoices, setMeetingOrderChoices] = useState<string[] | null>(null)
 
   // Demo build: lets the player pick or switch clients directly on this form,
-  // instead of only inheriting whatever was chosen back in Level 2.
+  // instead of only inheriting whatever was chosen back in Level 2. Only clients
+  // the player has actually completed Outreach with are selectable.
   function selectClient(id: string) {
-    if (id === personaId) return
+    if (id === personaId || !isUnlocked(id)) return
 
     setPersonaId(id)
     setStep(0)
@@ -118,16 +136,64 @@ export function PreparationPanel({ onClose, gradePreparation }: {
     } finally { setBusy(false) }
   }
 
-  function finish() {
+  // Both clients share one Level 4 meeting room, so their prep is stored per
+  // persona (not in one slot) — otherwise preparing a second client would
+  // silently erase the first client's saved objectives and questions.
+  function writePreparation(id: string) {
+    const existing = JSON.parse(localStorage.getItem(PREPARATION_KEY) ?? 'null')
+    const map = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {}
+    localStorage.setItem(PREPARATION_KEY, JSON.stringify({ ...map, [id]: { objectives, questions } }))
+  }
+
+  function writeMeetingOrder(order: string[]) {
+    localStorage.setItem(MEETING_ORDER_KEY, JSON.stringify(order))
+    // A fresh order starts a fresh run: nobody in it has met with the client yet.
+    localStorage.removeItem(MEETING_DONE_KEY)
+  }
+
+  async function finish() {
     if (!result) return
+    setBusy(true)
     try {
-      // The handoff records the exact reviewed selections, not a later edited draft.
-      localStorage.setItem('ibm-level-three-preparation', JSON.stringify({ personaId, objectives, questions, ...result }))
+      writePreparation(personaId)
       localStorage.setItem(COMPLETION_KEY, 'true')
       sessionStorage.setItem(CELEBRATION_KEY, 'true')
       window.dispatchEvent(new Event(COMPLETION_KEY))
+    } catch {
+      setError('Progress could not be saved. Please allow browser storage and try again.')
+      setBusy(false)
+      return
+    }
+
+    // If the player has now prepared both clients, ask which order to meet them
+    // in instead of assuming whichever was reviewed last goes first.
+    const preparedIds = Object.keys(preparationContent).filter(isUnlocked)
+    let preparedBothIds = [personaId]
+
+    try {
+      const completedKeys = await getCompletedClientKeysAction(MEETING_PREP_STAGE_ID)
+      preparedBothIds = preparedIds.filter((id) => {
+        const key = clientKeyFromPersonaId(id)
+        return key !== null && completedKeys.includes(key)
+      })
+    } catch {
+      // If the check fails, fall back to only this client rather than blocking finish.
+    }
+
+    setBusy(false)
+
+    if (preparedBothIds.length > 1) {
+      setMeetingOrderChoices(preparedBothIds)
+    } else {
+      writeMeetingOrder([personaId])
       setFinished(true)
-    } catch { setError('Progress could not be saved. Please allow browser storage and try again.') }
+    }
+  }
+
+  function confirmMeetingOrder(order: string[]) {
+    writeMeetingOrder(order)
+    setMeetingOrderChoices(null)
+    setFinished(true)
   }
 
   return <div className={styles.overlay} onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()}>
@@ -140,7 +206,8 @@ export function PreparationPanel({ onClose, gradePreparation }: {
           {client && <p>{client.name} · {client.industry}</p>}
           {!finished && <div className={styles.clientSwitcher} role="group" aria-label="Change client">
             {Object.entries(preparationContent).map(([id, info]) => (
-              <button key={id} type="button" aria-pressed={id === personaId} disabled={busy}
+              <button key={id} type="button" aria-pressed={id === personaId} disabled={busy || !isUnlocked(id)}
+                title={isUnlocked(id) ? undefined : 'Complete Outreach with this client first'}
                 onClick={() => selectClient(id)}>{info.name}</button>
             ))}
           </div>}
@@ -183,9 +250,12 @@ export function PreparationPanel({ onClose, gradePreparation }: {
           {step === 1 && <button className={styles.primary} disabled={!objectives.length} onClick={() => setStep(2)}>Prepare Questions →</button>}
           {step === 2 && <button className={styles.primary} disabled={!questions.length} onClick={review}>Review Preparation →</button>}
           {step === 3 && !result && <button className={styles.primary} disabled={busy || !gradePreparation} onClick={review}>Retry review</button>}
-          {step === 3 && result && <button className={styles.primary} onClick={finish}>Enter Meeting →</button>}
+          {step === 3 && result && <button className={styles.primary} disabled={busy} onClick={() => void finish()}>Enter Meeting →</button>}
         </footer>}
       </div>
     </motion.section>
+    {meetingOrderChoices && (
+      <MeetingOrderPopup personaIds={meetingOrderChoices} onConfirm={confirmMeetingOrder} />
+    )}
   </div>
 }

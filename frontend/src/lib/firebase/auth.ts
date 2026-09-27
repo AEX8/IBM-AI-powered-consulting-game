@@ -2,6 +2,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInAnonymously,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
@@ -44,6 +45,14 @@ export async function signUpWithEmail(
 
 export async function signInWithGoogle(): Promise<User> {
   const result = await signInWithPopup(getClientAuth(), googleProvider)
+  return result.user
+}
+
+// Creates a brand-new, isolated Firebase user for this browser/device with no
+// typing or clicking. Each visitor gets their own uid and their own progress,
+// instead of everyone sharing one fixed demo account.
+export async function signInAsGuest(): Promise<User> {
+  const result = await signInAnonymously(getClientAuth())
   return result.user
 }
 

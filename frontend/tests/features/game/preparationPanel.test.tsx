@@ -5,7 +5,10 @@ import { PreparationPanel } from '../../../src/features/game/components/Preparat
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
-  localStorage.setItem('ibm-selected-outreach-client', JSON.stringify({ personaId: 'test-level-2' }))
+  localStorage.setItem(
+    'ibm-selected-outreach-client',
+    JSON.stringify({ personaId: 'test-level-2' })
+  )
 })
 afterEach(cleanup)
 
@@ -21,8 +24,13 @@ describe('preparation progression', () => {
   it('enforces three objectives and lets the player deselect one', () => {
     render(<PreparationPanel onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Set Meeting Objectives →' }))
-    const choices = screen.getAllByRole('button', { pressed: false })
-    choices.slice(0, 3).forEach(choice => fireEvent.click(choice))
+    const choices = [
+      /Create a reliable/,
+      /Replace Meridian's entire/,
+      /Build more dashboards/,
+      /Use AI to predict/,
+    ].map((name) => screen.getByRole('button', { name }))
+    choices.slice(0, 3).forEach((choice) => fireEvent.click(choice))
     expect(choices[3]).toBeDisabled()
     fireEvent.click(choices[0]!)
     expect(choices[3]).not.toBeDisabled()
@@ -36,21 +44,35 @@ describe('preparation progression', () => {
   })
 
   it('shows returned feedback and saves the reviewed submission before unlocking', async () => {
-    const grade = vi.fn().mockResolvedValue({ submissionId: 'saved-prep-1', feedback: 'Explore measurable business value.' })
+    const grade = vi.fn().mockResolvedValue({
+      submissionId: 'saved-prep-1',
+      feedback: 'Explore measurable business value.',
+    })
     render(<PreparationPanel onClose={vi.fn()} gradePreparation={grade} />)
     prepare()
     await screen.findByText('Explore measurable business value.')
     fireEvent.click(screen.getByRole('button', { name: 'Enter Meeting →' }))
     expect(localStorage.getItem('ibm-level-three-completed')).toBe('true')
     expect(sessionStorage.getItem('ibm-level-three-celebration-pending')).toBe('true')
-    expect(JSON.parse(localStorage.getItem('ibm-level-three-preparation')!).submissionId).toBe('saved-prep-1')
+    expect(JSON.parse(localStorage.getItem('ibm-level-three-preparation')!).submissionId).toBe(
+      'saved-prep-1'
+    )
   })
 
   it('retains choices and does not unlock on a failed grading request', async () => {
-    render(<PreparationPanel onClose={vi.fn()} gradePreparation={vi.fn().mockRejectedValue(new Error('offline'))} />)
+    render(
+      <PreparationPanel
+        onClose={vi.fn()}
+        gradePreparation={vi.fn().mockRejectedValue(new Error('offline'))}
+      />
+    )
     prepare()
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('could not be reviewed'))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('could not be reviewed')
+    )
     expect(localStorage.getItem('ibm-level-three-completed')).toBeNull()
-    expect(localStorage.getItem('ibm-preparation-draft:test-level-2')).toContain('Which customer data sources')
+    expect(localStorage.getItem('ibm-preparation-draft:test-level-2')).toContain(
+      'Which customer data sources'
+    )
   })
 })

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Timestamp } from 'firebase-admin/firestore'
 import { getServerSession } from '@/actions/auth.actions'
 import { adminDb } from '@/lib/firebase/admin'
-import { GroqError, callGroq } from '@/lib/groq'
+import { GroqError, callGroqForJson } from '@/lib/groq'
 import {
   MIN_PLAYER_MESSAGES_TO_SCORE,
   countPlayerMessages,
@@ -50,19 +50,18 @@ export async function POST(request: Request) {
 
     const persona = personaSnapshot.data() ?? {}
 
-    const raw = await callGroq({
+    const { result, lastRaw } = await callGroqForJson({
       messages: [
         { role: 'system', content: buildScoreSystemPrompt(persona, prep) },
         { role: 'user', content: formatTranscript(transcript) },
       ],
       maxTokens: 1000,
       temperature: 0,
+      parse: parseScoreResult,
     })
 
-    const result = parseScoreResult(raw)
-
     if (!result) {
-      console.error('Meeting score: could not read the AI response:', raw)
+      console.error('Meeting score: could not read the AI response:', lastRaw)
       return NextResponse.json({ error: 'The meeting could not be assessed.' }, { status: 502 })
     }
 

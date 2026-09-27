@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from 'motion/react'
 
 type IntroPhase = 'typing' | 'opening' | 'leaving' | 'hidden'
 
-const ELEVATOR_TITLE = 'IBM CONSULTANCY 101'
+const IBM_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg'
 
 /**
  * Large decorative plant positioned directly beside the elevator.
@@ -31,13 +31,13 @@ function CartoonPlant({ side }: { side: 'left' | 'right' }) {
     >
       <div className="relative h-64 w-44">
         {/* Left leaf */}
-        <div className="border-charcoal bg-plant-green absolute bottom-20 left-0 h-36 w-20 -rotate-[30deg] rounded-[55%] border-[5px]" />
+        <div className="border-charcoal absolute bottom-20 left-0 h-36 w-20 -rotate-[30deg] rounded-[55%] border-[5px] bg-[#5b8c4a]" />
 
         {/* Tall middle leaf */}
-        <div className="border-charcoal bg-plant-green absolute bottom-20 left-12 h-44 w-20 -rotate-[8deg] rounded-[55%] border-[5px]" />
+        <div className="border-charcoal absolute bottom-20 left-12 h-44 w-20 -rotate-[8deg] rounded-[55%] border-[5px] bg-[#5b8c4a]" />
 
         {/* Right leaf */}
-        <div className="border-charcoal bg-plant-green absolute right-0 bottom-20 h-36 w-20 rotate-[30deg] rounded-[55%] border-[5px]" />
+        <div className="border-charcoal absolute right-0 bottom-20 h-36 w-20 rotate-[30deg] rounded-[55%] border-[5px] bg-[#5b8c4a]" />
 
         {/* Plant pot */}
         <div className="border-charcoal bg-honey-wood absolute right-0 bottom-0 left-0 h-24 rounded-t-xl rounded-b-3xl border-[5px] shadow-[0_8px_0_rgba(44,44,42,0.22)]">
@@ -142,10 +142,10 @@ export default function ElevatorIntro() {
        * Warm striped wallpaper creates the cosy cartoon lobby appearance
        * without requiring a separate background image.
        */}
-      <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,#f4ede1_0px,#f4ede1_44px,#faf6ee_44px,#faf6ee_88px)]" />
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,#ffffff_0px,#ffffff_44px,#edf5ff_44px,#edf5ff_88px)]" />
 
       {/* Checkerboard lobby floor */}
-      <div className="border-charcoal absolute inset-x-0 bottom-0 h-[34%] border-t-[4px] bg-[conic-gradient(from_90deg_at_1px_1px,#d9d4c8_90deg,#f4ede1_0)_0_0/48px_48px]" />
+      <div className="border-charcoal absolute inset-x-0 bottom-0 h-[34%] border-t-[4px] bg-[conic-gradient(from_90deg_at_1px_1px,#d0e2ff_90deg,#ffffff_0)_0_0/48px_48px]" />
 
       {/* Wooden trim separating the wall and floor */}
       <div className="border-charcoal bg-wood-shadow absolute inset-x-0 bottom-[34%] z-10 h-4 border-y-[3px]" />
@@ -233,40 +233,17 @@ export default function ElevatorIntro() {
           aria-hidden="true"
         />
 
-        {/*
-         * The sign is positioned above the exact centre of the elevator.
-         * Each character animates independently to create the typing effect.
-         */}
+        {/* The IBM mark sits directly on the doors, without a sign behind it. */}
         <motion.div
-          className="border-charcoal bg-warm-cream absolute top-[40%] left-1/2 z-[65] flex w-[78%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border-[5px] px-4 py-5 text-[clamp(0.9rem,2.8vw,2.3rem)] font-semibold whitespace-nowrap text-[#4b3525] shadow-[5px_5px_0_rgba(44,44,42,0.25)]"
-          initial={{ opacity: 1, scale: 1 }}
+          className="pointer-events-none absolute top-[52%] left-1/2 z-[65] flex w-[min(42vw,300px)] -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+          initial={{ opacity: 0, scale: 0.9 }}
           animate={{
             opacity: doorsAreOpening ? 0 : 1,
             scale: doorsAreOpening ? 0.96 : 1,
           }}
-          transition={{ duration: 0.3 }}
-          aria-label={ELEVATOR_TITLE}
+          transition={{ duration: 0.7 }}
         >
-          {Array.from(ELEVATOR_TITLE).map((character, index) => (
-            <motion.span
-              /*
-               * The index is safe here because the title is a fixed string
-               * whose character order never changes.
-               */
-              key={`${character}-${index}`}
-              className={character === ' ' ? 'w-[0.35em]' : undefined}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.28,
-                delay: index * 0.075,
-                ease: 'easeOut',
-              }}
-              aria-hidden="true"
-            >
-              {character === ' ' ? '\u00A0' : character}
-            </motion.span>
-          ))}
+          <img src={IBM_LOGO_URL} alt="IBM" className="block h-auto w-full brightness-0" />
         </motion.div>
       </div>
 

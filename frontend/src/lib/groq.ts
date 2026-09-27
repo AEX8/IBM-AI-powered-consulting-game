@@ -62,6 +62,26 @@ export async function callGroq(options: {
   return content.trim()
 }
 
+// gpt-oss occasionally emits slightly malformed JSON on one call (e.g. an
+// extra stray array) even when told to return only JSON. Retry once with the
+// same prompt before giving up, since a second generation is usually clean.
+export async function callGroqForJson<T>(options: {
+  messages: GroqMessage[]
+  maxTokens: number
+  temperature?: number
+  parse: (raw: string) => T | null
+}): Promise<{ result: T | null; lastRaw: string }> {
+  let lastRaw = ''
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    lastRaw = await callGroq(options)
+    const result = options.parse(lastRaw)
+    if (result) return { result, lastRaw }
+  }
+
+  return { result: null, lastRaw }
+}
+
 // Models sometimes wrap JSON in code fences or add a sentence before it. Return the
 // {...} slice so callers can parse it, or null if there is no object at all.
 export function extractJsonObject(raw: string): string | null {

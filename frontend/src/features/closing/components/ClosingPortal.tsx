@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { Home, FileCheck2, ArrowRight, Check, LoaderCircle, Trophy } from 'lucide-react'
+import { FileCheck2, ArrowRight, Check, LoaderCircle, Trophy } from 'lucide-react'
+import { LevelNavigationControls } from '@/features/game/components/LevelNavigationControls'
 import { z } from 'zod'
 import {
   PERSONAS,
@@ -181,14 +182,7 @@ export function ClosingPortal({
           <ClosingWorkspace persona={PERSONAS[key]} />
         </div>
       ))}
-      <Link
-        href="/dashboard"
-        aria-label="Back to lobby"
-        title="Back to lobby"
-        className="border-charcoal bg-plant-green hover:bg-dark-blue fixed bottom-6 left-6 z-30 flex size-14 items-center justify-center rounded-full border-[3px] text-white shadow-[3px_3px_0_var(--charcoal)] transition"
-      >
-        <Home size={24} />
-      </Link>
+      <LevelNavigationControls level={6} client={active ?? undefined} />
     </div>
   )
 }
@@ -665,7 +659,7 @@ function SignaturePrompt({ clientName, onSigned }: { clientName: string; onSigne
     const { x, y } = point(event)
     canvas.setPointerCapture(event.pointerId)
     drawing.current = true
-    context.strokeStyle = '#1f4e79'
+    context.strokeStyle = '#001d6c'
     context.lineWidth = 3
     context.lineCap = 'round'
     context.lineJoin = 'round'

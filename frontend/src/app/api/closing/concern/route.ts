@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from '@/actions/auth.actions'
-import { GroqError, callGroq } from '@/lib/groq'
+import { GroqError, callGroqForJson } from '@/lib/groq'
 import { canStartClosing } from '@/features/closing/closing'
 import { buildConcernSystemPrompt, parseConcern } from '@/features/closing/prompts'
 import { concernRequestSchema } from '@/features/closing/schema'
@@ -41,19 +41,18 @@ export async function POST(request: Request) {
 
     const round = history.length + 1
 
-    const raw = await callGroq({
+    const { result: concern, lastRaw } = await callGroqForJson({
       messages: [
         { role: 'system', content: buildConcernSystemPrompt(prompts, terms, round, history) },
         { role: 'user', content: 'Raise your next concern before signing.' },
       ],
       maxTokens: 1000,
       temperature: 0.7,
+      parse: parseConcern,
     })
 
-    const concern = parseConcern(raw)
-
     if (!concern) {
-      console.error('Closing concern: could not read the AI response:', raw)
+      console.error('Closing concern: could not read the AI response:', lastRaw)
       return NextResponse.json({ error: 'The client could not respond.' }, { status: 502 })
     }
 

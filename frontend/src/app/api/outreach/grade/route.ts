@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server'
+import { GroqError, callGroqForJson, extractJsonObject } from '@/lib/groq'
 
-const MODEL = 'openai/gpt-oss-20b'
+type OutreachGradeResult = { score: number; feedback: string }
+
+function parseOutreachGrade(rawContent: string): OutreachGradeResult | null {
+  const jsonSlice = extractJsonObject(rawContent)
+  if (!jsonSlice) return null
+
+  let parsed: { score?: unknown; feedback?: unknown }
+
+  try {
+    parsed = JSON.parse(jsonSlice)
+  } catch {
+    return null
+  }
+
+  const score = Number(parsed.score)
+  const feedback = parsed.feedback
+
+  if (!Number.isInteger(score) || score < 0 || score > 6 || typeof feedback !== 'string') {
+    return null
+  }
+
+  return { score, feedback }
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,15 +42,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Persona information is required' },
         { status: 400 }
-      )
-    }
-
-    const apiKey = process.env.GROQ_API_KEY
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'GROQ_API_KEY is not configured' },
-        { status: 500 }
       )
     }
 
@@ -60,90 +74,40 @@ Return ONLY valid JSON in this format:
 }
 `
 
-    const groqResponse = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+    const { result, lastRaw } = await callGroqForJson({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an evaluator for a consulting simulation game. Return only valid JSON.',
         },
-        body: JSON.stringify({
-          model: MODEL,
-          temperature: 0,
-            
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are an evaluator for a consulting simulation game. Return only valid JSON.',
-            },
-            {
-              role: 'user',
-              content: gradingPrompt,
-            },
-          ],
-          max_tokens: 1000,
-        }),
-      }
-    )
+        {
+          role: 'user',
+          content: gradingPrompt,
+        },
+      ],
+      maxTokens: 1000,
+      temperature: 0,
+      parse: parseOutreachGrade,
+    })
 
-    if (!groqResponse.ok) {
-  const errorText = await groqResponse.text()
-
-  console.error('Groq grading error:', errorText)
-
-  return NextResponse.json(
-    { error: 'Grading request failed' },
-    { status: 502 }
-  )
-}
-
-    const groqData = await groqResponse.json()
-    
-    
-
-    const content = groqData?.choices?.[0]?.message?.content
-
-    if (!content || typeof content !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid grading response' },
-        { status: 502 }
-      )
-    }
-
-    let result
-
-    try {
-      result = JSON.parse(content)
-    } catch {
+    if (!result) {
+      console.error('Outreach grading: could not read the AI response:', lastRaw)
       return NextResponse.json(
         { error: 'Could not parse grading response' },
         { status: 502 }
       )
     }
 
-    const score = Number(result.score)
-    const feedback = result.feedback
-
-    if (
-      !Number.isInteger(score) ||
-      score < 0 ||
-      score > 6 ||
-      typeof feedback !== 'string'
-    ) {
-      return NextResponse.json(
-        { error: 'Grading response had an invalid format' },
-        { status: 502 }
-      )
-    }
-
     return NextResponse.json({
       success: true,
-      score,
-      feedback,
+      score: result.score,
+      feedback: result.feedback,
     })
   } catch (error) {
+    if (error instanceof GroqError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error('Outreach grading API error:', error)
 
     return NextResponse.json(

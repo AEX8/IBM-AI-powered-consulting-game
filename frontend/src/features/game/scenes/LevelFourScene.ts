@@ -10,6 +10,8 @@ const WORLD_HEIGHT = 720
 const WALKABLE_TOP = 365
 const PLAYER_SPEED = 220
 const LEVEL_THREE_PREPARATION_KEY = 'ibm-level-three-preparation'
+const MEETING_ORDER_KEY = 'ibm-level-four-meeting-order'
+const MEETING_DONE_KEY = 'ibm-level-four-meeting-done'
 // Demo build: clicking the client, desk or chair always walks the player to this
 // exact spot on open floor below the furniture, then beginMeetingSequence() takes
 // over with its own short seat-approach animation from wherever they end up.
@@ -19,6 +21,7 @@ const MEETING_STAND_POINT = { x: 720, y: 660 }
 const MEETING_ARRIVAL_DISTANCE = 60
 
 type MeetingClient = {
+  key: 'david' | 'sarah'
   name: string
   personaId: string
   company: string
@@ -28,13 +31,13 @@ type MeetingClient = {
 }
 
 type SavedPrep = {
-  personaId: string
   objectives: string[]
   questions: string[]
 }
 
 const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
   david: {
+    key: 'david',
     name: 'David Palte',
     personaId: 'test-level-2',
     company: 'Meridian Retail Group',
@@ -44,6 +47,7 @@ const CLIENTS: Record<'david' | 'sarah', MeetingClient> = {
       'Thanks for meeting with me. I am interested to hear how you would approach our fragmented customer data.',
   },
   sarah: {
+    key: 'sarah',
     name: 'Sarah Chen',
     personaId: 'test-level-1',
     company: 'ACMD Manufacturing',
@@ -63,6 +67,10 @@ export class LevelFourScene extends Phaser.Scene {
   private chair!: Phaser.GameObjects.Image
   private interfaceCamera!: Phaser.Cameras.Scene2D.Camera
   private client!: MeetingClient
+  private clientImage!: Phaser.GameObjects.Image
+  // Clients still waiting for their meeting this run, in the order chosen at the
+  // end of Level 3. The current client (this.client) is not in this list.
+  private queue: MeetingClient[] = []
   private effects!: LevelOneEffects
   private clickToMove!: ClickToMoveController
   private meetingOverlay?: MeetingOverlayHandle
@@ -71,17 +79,19 @@ export class LevelFourScene extends Phaser.Scene {
   private playerShadow!: Phaser.GameObjects.Ellipse
   private lastFootstepAt = 0
   private meetingSequenceActive = false
-  private savedPrep?: SavedPrep
+  private savedPrep: Record<string, SavedPrep> = {}
 
   constructor() {
     super('LevelFourScene')
   }
 
   preload(): void {
-    this.client = this.resolveClient()
     this.load.image('level-four-player', '/assets/characters/npcs/character-03.png')
     this.load.image('level-four-player-back', '/assets/game/level-2/player-facing-desk.png')
-    this.load.image('level-four-selected-client', `/assets/characters/npcs/${this.client.portrait}`)
+    // Both portraits are preloaded unconditionally so the room can swap the client
+    // in place when a second meeting follows the first, without a reload.
+    this.load.image(this.portraitKey(CLIENTS.sarah), `/assets/characters/npcs/${CLIENTS.sarah.portrait}`)
+    this.load.image(this.portraitKey(CLIENTS.david), `/assets/characters/npcs/${CLIENTS.david.portrait}`)
     this.load.image(
       'level-four-painting',
       '/assets/game/level-4/furniture/level-four-garden-painting.png'
@@ -100,6 +110,9 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   create(): void {
+    const meetingQueue = this.resolveQueue()
+    this.client = meetingQueue[0]!
+    this.queue = meetingQueue.slice(1)
     this.savedPrep = this.readSavedPrep()
     this.effects = new LevelOneEffects(this)
     this.physics.world.setBounds(0, WALKABLE_TOP, WORLD_WIDTH, WORLD_HEIGHT - WALKABLE_TOP)
@@ -129,42 +142,77 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   /**
-   * Level 3 stores the exact objectives and questions the player reviewed. They are
-   * only used if they were prepared for the client being met now.
+   * Level 3 stores the exact objectives and questions the player reviewed, keyed
+   * by persona id since either or both clients may have been prepared this run.
    */
-  private readSavedPrep(): SavedPrep | undefined {
+  private readSavedPrep(): Record<string, SavedPrep> {
     try {
-      const saved = JSON.parse(
-        window.localStorage.getItem(LEVEL_THREE_PREPARATION_KEY) ?? 'null'
-      ) as Partial<Record<'personaId' | 'objectives' | 'questions', unknown>> | null
+      const saved = JSON.parse(window.localStorage.getItem(LEVEL_THREE_PREPARATION_KEY) ?? 'null') as unknown
 
-      if (!saved || typeof saved.personaId !== 'string') return undefined
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {}
 
       const toList = (value: unknown): string[] =>
         Array.isArray(value)
           ? value.filter((item): item is string => typeof item === 'string').slice(0, 3)
           : []
 
-      return {
-        personaId: saved.personaId,
-        objectives: toList(saved.objectives),
-        questions: toList(saved.questions),
+      const map: Record<string, SavedPrep> = {}
+      for (const [personaId, value] of Object.entries(saved as Record<string, unknown>)) {
+        const entry = value as Partial<Record<'objectives' | 'questions', unknown>> | null
+        if (!entry) continue
+        map[personaId] = { objectives: toList(entry.objectives), questions: toList(entry.questions) }
       }
+      return map
     } catch {
       // Damaged browser data must never stop the room from loading.
-      return undefined
+      return {}
     }
   }
 
   private currentPrep(): MeetingPrepContext | undefined {
-    const prep = this.savedPrep
-
-    if (!prep || prep.personaId !== this.client.personaId) return undefined
+    const prep = this.savedPrep[this.client.personaId]
+    if (!prep) return undefined
 
     return { objectives: prep.objectives, questions: prep.questions }
   }
 
-  /** Resolve the Level 2 selection, while retaining query-string previews for QA. */
+  private portraitKey(client: MeetingClient): string {
+    return `level-four-portrait-${client.key}`
+  }
+
+  /**
+   * Level 3 writes the chosen meeting order once both clients are prepared (or
+   * just the one client, if only one was). This filters out whoever the player
+   * has already met this run, so returning after a passed meeting resumes with
+   * whoever is left instead of repeating the first client.
+   */
+  private resolveQueue(): MeetingClient[] {
+    const requested = new URLSearchParams(window.location.search).get('client')?.toLowerCase()
+    if (requested === 'sarah' || requested === 'david') return [CLIENTS[requested]]
+
+    try {
+      const order = JSON.parse(window.localStorage.getItem(MEETING_ORDER_KEY) ?? 'null') as unknown
+      const done = JSON.parse(window.localStorage.getItem(MEETING_DONE_KEY) ?? 'null') as unknown
+      const doneIds = new Set(
+        Array.isArray(done) ? done.filter((item): item is string => typeof item === 'string') : []
+      )
+
+      if (Array.isArray(order)) {
+        const queue = order
+          .filter((id): id is string => typeof id === 'string' && !doneIds.has(id))
+          .map((id) => Object.values(CLIENTS).find((meetingClient) => meetingClient.personaId === id))
+          .filter((meetingClient): meetingClient is MeetingClient => Boolean(meetingClient))
+
+        if (queue.length > 0) return queue
+      }
+    } catch {
+      // Damaged browser data falls through to the single-client legacy path below.
+    }
+
+    return [this.resolveClient()]
+  }
+
+  /** Legacy single-client fallback: the shared Level 2/3 "last selected" flag. */
   private resolveClient(): MeetingClient {
     const requested = new URLSearchParams(window.location.search).get('client')?.toLowerCase()
     if (requested === 'sarah') return CLIENTS.sarah
@@ -174,22 +222,10 @@ export class LevelFourScene extends Phaser.Scene {
       const stored = window.localStorage.getItem(SELECTED_OUTREACH_CLIENT_KEY)
       if (stored) {
         const selection = JSON.parse(stored) as Partial<{ name: string; portrait: string }>
-        if (selection.name && selection.portrait) {
-          const knownClient = Object.values(CLIENTS).find(
-            (client) => client.name === selection.name
-          )
-          return (
-            knownClient ?? {
-              name: selection.name,
-              personaId: '',
-              company: 'Client organisation',
-              texture: 'level-four-selected-client',
-              portrait: selection.portrait,
-              opening:
-                'Thanks for meeting with me. I am interested to hear the approach you have prepared for our organisation.',
-            }
-          )
-        }
+        // Only the two known clients have a preloaded portrait and texture key,
+        // so an unrecognised name falls through to the default below.
+        const knownClient = Object.values(CLIENTS).find((client) => client.name === selection.name)
+        if (knownClient) return knownClient
       }
     } catch {
       // Damaged legacy browser data must never prevent the room from loading.
@@ -204,20 +240,20 @@ export class LevelFourScene extends Phaser.Scene {
    * CSS shapes and each object's collision footprint can be tuned independently.
    */
   private createTilemapRoom(): void {
-    this.add.rectangle(720, 180, WORLD_WIDTH, 360, 0xead8bd)
+    this.add.rectangle(720, 180, WORLD_WIDTH, 360, 0xf7fbff)
     const wallPattern = this.add.graphics()
-    wallPattern.lineStyle(2, 0xe0cbaa, 0.38)
+    wallPattern.lineStyle(2, 0xd0e2ff, 0.38)
     for (let x = 0; x <= WORLD_WIDTH; x += 120) wallPattern.lineBetween(x, 0, x, 360)
     for (let y = 0; y <= 360; y += 90) wallPattern.lineBetween(0, y, WORLD_WIDTH, y)
 
-    this.add.rectangle(720, 540, WORLD_WIDTH, 360, 0xb98900)
+    this.add.rectangle(720, 540, WORLD_WIDTH, 360, 0xffffff)
     const carpetPattern = this.add.graphics()
-    carpetPattern.lineStyle(2, 0x9c7300, 0.22)
+    carpetPattern.lineStyle(2, 0xa6c8ff, 0.22)
     for (let x = -360; x < WORLD_WIDTH + 360; x += 90) {
       carpetPattern.lineBetween(x, 360, x + 360, WORLD_HEIGHT)
     }
 
-    this.add.rectangle(720, 360, WORLD_WIDTH, 18, 0x8f5b28).setDepth(3)
+    this.add.rectangle(720, 360, WORLD_WIDTH, 18, 0xa6c8ff).setDepth(3)
     this.add.rectangle(720, 6, WORLD_WIDTH, 12, 0x2c2c2a).setDepth(30)
     this.add.rectangle(720, 714, WORLD_WIDTH, 12, 0x2c2c2a).setDepth(30)
     this.add.rectangle(6, 360, 12, WORLD_HEIGHT, 0x2c2c2a).setDepth(30)
@@ -232,11 +268,12 @@ export class LevelFourScene extends Phaser.Scene {
 
     // Separate client, desk and chair layers reproduce the wireframe perspective
     // while allowing the player to pass visually in front of the furniture.
-    const client = this.add
-      .image(720, 350, 'level-four-selected-client')
+    this.clientImage = this.add
+      .image(720, 350, this.portraitKey(this.client))
       .setDisplaySize(175, 275)
       .setDepth(7)
       .setInteractive({ useHandCursor: true })
+    const client = this.clientImage
     this.add.ellipse(720, 560, 515, 42, 0x2c2c2a, 0.18).setDepth(8)
     const desk = this.add
       .image(720, 465, 'level-four-desk')
@@ -264,7 +301,7 @@ export class LevelFourScene extends Phaser.Scene {
     desk.on('pointerdown', startMeeting)
     this.chair.on('pointerdown', startMeeting)
 
-    const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xffdda3, 0.05).setDepth(3)
+    const paintingGlow = this.add.rectangle(720, 168, 500, 334, 0xd0e2ff, 0.05).setDepth(3)
     this.tweens.add({
       targets: paintingGlow,
       alpha: { from: 0.03, to: 0.13 },
@@ -435,12 +472,17 @@ export class LevelFourScene extends Phaser.Scene {
   }
 
   private createRoundButton(x: number, y: number, label: string, action: () => void): void {
-    const circle = this.add.circle(x, y, 28, label === '⌂' ? 0x5b8c4a : 0x2c2c2a).setDepth(120)
+    const circle = this.add
+      .circle(x, y, 28, label === '⌂' ? 0x5b8c4a : 0x2c2c2a)
+      .setDepth(120)
+      .setVisible(false)
     circle.setStrokeStyle(4, 0x161616).setInteractive({ useHandCursor: true })
+    circle.disableInteractive()
     const icon = this.add
       .text(x, y - 2, label, { fontFamily: 'Arial', fontSize: '30px', color: '#ffffff' })
       .setOrigin(0.5)
       .setDepth(121)
+      .setVisible(false)
     circle.on('pointerdown', action)
     circle.on('pointerover', () =>
       this.tweens.add({ targets: [circle, icon], scale: 1.1, duration: 120 })
@@ -492,7 +534,51 @@ export class LevelFourScene extends Phaser.Scene {
         opening: this.client.opening,
       },
       getPrep: () => this.currentPrep(),
+      onPassed: () => this.markCurrentClientDone(),
       onClose: () => this.closeMeeting(),
+    })
+  }
+
+  /**
+   * Records the pass the moment scoring confirms it — not on whichever close
+   * button is eventually pressed — so it is saved even if the player leaves via
+   * "Return to lobby", which navigates away without closing the overlay first.
+   */
+  private markCurrentClientDone(): void {
+    try {
+      const done = JSON.parse(window.localStorage.getItem(MEETING_DONE_KEY) ?? 'null') as unknown
+      const doneIds = Array.isArray(done)
+        ? done.filter((item): item is string => typeof item === 'string')
+        : []
+      if (!doneIds.includes(this.client.personaId)) doneIds.push(this.client.personaId)
+      window.localStorage.setItem(MEETING_DONE_KEY, JSON.stringify(doneIds))
+    } catch {
+      // The in-memory queue below still advances correctly for this session.
+    }
+  }
+
+  private switchToClient(next: MeetingClient): void {
+    this.client = next
+    this.clientImage.setTexture(this.portraitKey(next))
+
+    const banner = this.add
+      .text(WORLD_WIDTH / 2, 300, `Next up: ${next.name}`, {
+        fontFamily: 'Arial',
+        fontSize: '34px',
+        fontStyle: 'bold',
+        color: '#161616',
+        backgroundColor: '#d0e2ff',
+        padding: { x: 20, y: 12 },
+      })
+      .setOrigin(0.5)
+      .setDepth(200)
+    this.interfaceCamera.ignore(banner)
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: 1600,
+      duration: 500,
+      onComplete: () => banner.destroy(),
     })
   }
 
@@ -501,6 +587,12 @@ export class LevelFourScene extends Phaser.Scene {
     this.meetingOverlay = undefined
     this.cameras.main.pan(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 450, 'Sine.easeInOut')
     this.cameras.main.zoomTo(1, 450, 'Sine.easeInOut')
+
+    if (this.queue.length > 0) {
+      const [next, ...rest] = this.queue
+      this.queue = rest
+      this.switchToClient(next!)
+    }
     this.player
       .setTexture('level-four-player')
       .setDisplaySize(180, 286)

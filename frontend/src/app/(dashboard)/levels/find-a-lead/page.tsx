@@ -7,7 +7,7 @@ export default function FindLeadPage() {
      * The Level 1 game uses the entire browser viewport.
      * LandingHeader is already hidden for /levels routes.
      */
-    <main className="relative h-screen w-full overflow-hidden bg-[#2c2c2a]">
+    <main className="relative h-screen w-full overflow-hidden bg-[#161616]">
       <PhaserGame />
 
       {/*

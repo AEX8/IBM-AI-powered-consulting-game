@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPersonaPrompts } from '@/features/proposal/personaPrompts'
-
-const MODEL = 'openai/gpt-oss-20b'
+import { GroqError, callGroqForJson, extractJsonObject } from '@/lib/groq'
 
 type ObjectionRequestBody = {
   personaKey?: unknown
@@ -22,16 +21,28 @@ function timelineLabels(value: unknown): string[] {
     .filter(Boolean)
 }
 
-function extractJsonObject(rawContent: string): string | null {
-  const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim()
-  const firstBrace = cleaned.indexOf('{')
-  const lastBrace = cleaned.lastIndexOf('}')
+type ObjectionResult = { objection: string; suggestions: string[] }
 
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+function parseObjection(rawContent: string): ObjectionResult | null {
+  const jsonSlice = extractJsonObject(rawContent)
+  if (!jsonSlice) return null
+
+  let parsed: { objection?: unknown; suggestions?: unknown }
+
+  try {
+    parsed = JSON.parse(jsonSlice)
+  } catch {
     return null
   }
 
-  return cleaned.slice(firstBrace, lastBrace + 1)
+  const objection = typeof parsed.objection === 'string' ? parsed.objection.trim() : ''
+  if (!objection) return null
+
+  const suggestions = Array.isArray(parsed.suggestions)
+    ? parsed.suggestions.filter((item): item is string => typeof item === 'string')
+    : []
+
+  return { objection, suggestions }
 }
 
 export async function POST(request: Request) {
@@ -50,12 +61,6 @@ export async function POST(request: Request) {
     const timeline = timelineLabels(body.timeline)
     const weakestDimension = typeof body.weakestDimension === 'string' ? body.weakestDimension : 'fit'
     const roundNumber = typeof body.roundNumber === 'number' ? body.roundNumber : 1
-
-    const apiKey = process.env.GROQ_API_KEY
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GROQ_API_KEY is not configured' }, { status: 500 })
-    }
 
     const prompt = `
 ${prompts.objectionVoice}
@@ -83,69 +88,31 @@ The suggestions are coaching tips for the consultant on how to revise the propos
 as plain advice, not as your own dialogue.
 `
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.6,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are powering a client persona in a consulting training simulation. Return only valid JSON.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: 1000,
-      }),
+    const { result, lastRaw } = await callGroqForJson({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are powering a client persona in a consulting training simulation. Return only valid JSON.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      maxTokens: 1000,
+      temperature: 0.6,
+      parse: parseObjection,
     })
 
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text()
-      console.error('Proposal objection: Groq API request failed:', errorText)
-      return NextResponse.json({ error: 'Objection request failed' }, { status: 502 })
-    }
-
-    const data = await groqResponse.json()
-    const rawContent = data?.choices?.[0]?.message?.content
-
-    if (!rawContent || typeof rawContent !== 'string') {
-      console.error('Proposal objection: invalid response shape:', data)
-      return NextResponse.json({ error: 'Invalid objection response' }, { status: 502 })
-    }
-
-    const jsonSlice = extractJsonObject(rawContent)
-
-    if (!jsonSlice) {
-      console.error('Proposal objection: no JSON object found in Groq response:', rawContent)
+    if (!result) {
+      console.error('Proposal objection: could not read the AI response:', lastRaw)
       return NextResponse.json({ error: 'Could not parse objection response' }, { status: 502 })
     }
 
-    let parsed: { objection?: unknown; suggestions?: unknown }
-
-    try {
-      parsed = JSON.parse(jsonSlice)
-    } catch {
-      console.error('Proposal objection: JSON.parse failed on:', jsonSlice)
-      return NextResponse.json({ error: 'Could not parse objection response' }, { status: 502 })
-    }
-
-    const objection = typeof parsed.objection === 'string' ? parsed.objection.trim() : ''
-    const suggestions = Array.isArray(parsed.suggestions)
-      ? parsed.suggestions.filter((item): item is string => typeof item === 'string')
-      : []
-
-    if (!objection) {
-      console.error('Proposal objection: empty objection field in parsed response:', parsed)
-      return NextResponse.json({ error: 'Empty objection from provider' }, { status: 502 })
-    }
-
-    return NextResponse.json({ objection, suggestions })
+    return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof GroqError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error('Proposal objection API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

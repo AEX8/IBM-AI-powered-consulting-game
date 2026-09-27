@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import Link from 'next/link'
-import { Home } from 'lucide-react'
+import { LevelNavigationControls } from '@/features/game/components/LevelNavigationControls'
 import { ProposalHeader } from './ProposalHeader'
 import { ProposalWorkspace } from './ProposalWorkspace'
 import { PERSONAS, personaKeyFromName, type PersonaKey } from '../personas'
@@ -28,17 +27,8 @@ function readSelectedClientName(): string | null {
   }
 }
 
-function LobbyButton() {
-  return (
-    <Link
-      href="/dashboard"
-      aria-label="Back to lobby"
-      title="Back to lobby"
-      className="border-charcoal bg-plant-green hover:bg-dark-blue fixed bottom-6 left-6 z-30 flex size-14 items-center justify-center rounded-full border-[3px] text-white shadow-[3px_3px_0_var(--charcoal)] transition"
-    >
-      <Home className="size-6" aria-hidden="true" />
-    </Link>
-  )
+function LobbyButton({ client }: { client?: string }) {
+  return <LevelNavigationControls level={5} client={client} />
 }
 
 type ProposalPortalProps = {
@@ -81,12 +71,15 @@ export function ProposalPortal({ initialClientKey, availableClientKeys }: Propos
       />
 
       {availableClientKeys.map((key) => (
-        <div key={key} className={key === activeKey ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+        <div
+          key={key}
+          className={key === activeKey ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}
+        >
           <ProposalWorkspace persona={PERSONAS[key]} />
         </div>
       ))}
 
-      <LobbyButton />
+      <LobbyButton client={activeKey} />
     </div>
   )
 }
