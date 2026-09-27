@@ -17,10 +17,10 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
 
   return (
     <aside
-      className="grid content-start gap-3 xl:h-full xl:min-h-0"
+      className="flex flex-col gap-3 xl:h-full xl:min-h-0"
       aria-label="Consultant progress"
     >
-      <section className="game-progress-panel border-charcoal bg-cloud-white rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
+      <section className="game-progress-panel border-charcoal bg-cloud-white flex flex-1 flex-col justify-center rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
         <h2 className="text-dark-blue text-lg font-extrabold">Your Score</h2>
 
         <div
@@ -42,7 +42,7 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
         </p>
       </section>
 
-      <section className="game-progress-panel border-charcoal bg-cloud-white rounded-xl border-[3px] p-3 text-center shadow-[4px_4px_0_var(--charcoal)]">
+      <section className="game-progress-panel border-charcoal bg-cloud-white flex flex-1 flex-col justify-center rounded-xl border-[3px] p-3 text-center shadow-[4px_4px_0_var(--charcoal)]">
         <h2 className="text-dark-blue text-lg font-extrabold">Your progress</h2>
 
         <div
@@ -66,7 +66,7 @@ export default function ProgressPanel({ progress }: ProgressPanelProps) {
         </p>
       </section>
 
-      <section className="game-progress-panel border-charcoal bg-cloud-white rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
+      <section className="game-progress-panel border-charcoal bg-cloud-white flex flex-1 flex-col justify-center rounded-xl border-[3px] p-3 shadow-[4px_4px_0_var(--charcoal)]">
         <h2 className="text-dark-blue text-lg font-extrabold">Your stats</h2>
 
         <dl className="mt-3 space-y-2 text-xs">

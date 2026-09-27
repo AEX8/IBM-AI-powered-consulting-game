@@ -1,27 +1,40 @@
+import Image from 'next/image'
 import Link from 'next/link'
 
 type TeamMember = {
   name: string
   role: string
+  photo: string
+  linkedin?: string
 }
 
 const TEAM: TeamMember[] = [
-  { name: 'Gayath Wethmin Kaluwahewa', role: 'Project Manager & Developer' },
-  { name: 'Kashaf Fatima', role: 'Developer' },
-  { name: 'Amritha Selvaganapathi', role: 'UX/UI Designer' },
-  { name: 'Fatima Hubail', role: 'Business Analyst' },
-  { name: 'Ibrahim Allouche', role: 'Developer' },
+  {
+    name: 'Gayath Wethmin Kaluwahewa',
+    role: 'Project Manager & Developer',
+    photo: '/assets/team/gayath.jpg',
+    linkedin: 'https://www.linkedin.com/in/gayath-wethmin-kaluwahewa-a4a7b82a3/',
+  },
+  {
+    name: 'Kashaf Fatima',
+    role: 'Developer',
+    photo: '/assets/team/kashaf.webp',
+    linkedin: 'https://www.linkedin.com/in/kashaffatima1506/',
+  },
+  {
+    name: 'Amritha Selvaganapathi',
+    role: 'UX/UI Designer',
+    photo: '/assets/team/amritha.jpg',
+    linkedin: 'https://www.linkedin.com/in/amritha-selvaganapathi-402177371/',
+  },
+  {
+    name: 'Fatima Hubail',
+    role: 'Business Analyst',
+    photo: '/assets/team/fatima.jpg',
+    linkedin: 'https://www.linkedin.com/in/fatima-hubail/',
+  },
+  { name: 'Ibrahim Allouche', role: 'Developer', photo: '/assets/team/ibrahim.webp' },
 ]
-
-// First letter of the first and last name parts, e.g. "Gayath Wethmin
-// Kaluwahewa" -> "GK". Good enough for a five-person team without needing
-// photos yet.
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  const first = parts[0]?.[0] ?? ''
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
-  return `${first}${last}`.toUpperCase()
-}
 
 export default function HomePage() {
   return (
@@ -71,11 +84,25 @@ export default function HomePage() {
               key={member.name}
               className="flex flex-col items-center gap-3 rounded-xl border-[3px] border-[#161616] bg-white px-4 py-5 text-center shadow-[4px_4px_0_#161616] transition hover:-translate-y-1"
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-[#161616] bg-[#001d6c] text-lg font-extrabold text-white">
-                {initialsFor(member.name)}
-              </span>
+              <Image
+                src={member.photo}
+                alt={member.name}
+                width={56}
+                height={56}
+                className="h-14 w-14 rounded-full border-[3px] border-[#161616] object-cover"
+              />
               <span className="text-sm font-extrabold text-[#161616]">{member.name}</span>
               <span className="text-xs font-semibold text-[#001d6c]">{member.role}</span>
+              {member.linkedin && (
+                <a
+                  href={member.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-extrabold text-[#0f62fe] hover:underline"
+                >
+                  LinkedIn
+                </a>
+              )}
             </li>
           ))}
         </ul>

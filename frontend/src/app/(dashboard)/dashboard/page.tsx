@@ -87,12 +87,12 @@ export default async function DashboardPage({
 
           <h1
             id="lobby-heading"
-            className="text-charcoal mt-0.5 text-[clamp(1.1rem,1.5vw,1.4rem)] leading-tight font-extrabold"
+            className="text-charcoal mt-1 text-[clamp(1.1rem,1.5vw,1.4rem)] leading-tight font-extrabold"
           >
             Your consultancy journey starts here
           </h1>
 
-          <p className="text-charcoal text-xs leading-tight font-semibold">
+          <p className="text-charcoal mt-1 text-xs leading-tight font-semibold">
             Complete each stage of the consulting loop.
           </p>
         </section>
