@@ -306,7 +306,7 @@ export function PreparationPanel({
                 <h2>{firstCompletion ? 'Level 4 unlocked' : 'Preparation saved'}</h2>
                 <p>
                   {firstCompletion
-                    ? 'Your preparation is saved. Return home for your unlock celebration, then enter the client meeting.'
+                    ? 'Your preparation is saved. Return home to enter the client meeting.'
                     : 'Your preparation is saved. Return home to continue or replay the client meeting.'}
                 </p>
                 <a

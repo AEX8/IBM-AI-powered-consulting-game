@@ -57,6 +57,7 @@ type MeetingResult = {
   feedback: string
   improvements: string[]
   xpAwarded: number
+  firstCompletion: boolean
 }
 
 function escapeHtml(value: string): string {
@@ -124,6 +125,7 @@ function toMeetingResult(data: unknown): MeetingResult | null {
       ? source.improvements.filter((tip): tip is string => typeof tip === 'string')
       : [],
     xpAwarded: typeof source.xpAwarded === 'number' ? source.xpAwarded : 0,
+    firstCompletion: source.firstCompletion === true,
   }
 }
 
@@ -301,7 +303,9 @@ export function openMeetingOverlay(options: MeetingOverlayOptions): MeetingOverl
     root.querySelector('[data-retry-score]')?.addEventListener('click', () => void requestScore())
     root.querySelector('[data-restart]')?.addEventListener('click', () => restart())
     root.querySelector('[data-lobby]')?.addEventListener('click', () => {
-      window.location.assign('/dashboard')
+      window.location.assign(
+        result?.firstCompletion ? '/dashboard?completed=level-4' : '/dashboard'
+      )
     })
   }
 
