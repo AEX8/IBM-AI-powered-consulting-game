@@ -98,7 +98,7 @@ export default function HomePage() {
                   href={member.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-extrabold text-[#0f62fe] hover:underline"
+                  className="mt-auto pt-1 text-xs font-extrabold text-[#0f62fe] hover:underline"
                 >
                   LinkedIn
                 </a>
