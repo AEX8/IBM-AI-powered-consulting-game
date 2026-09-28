@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminDb } from '@/lib/firebase/admin'
+import { fetchGroqChat, stripReasoning, type GroqMessage } from '@/lib/groq'
 import {
   evaluateConversationCompletion,
   getPersonaCompletionConfig,
@@ -16,10 +17,8 @@ type CoverageResult = {
   coveredInfoPoints: string[]
 }
 
-const MODEL = 'openai/gpt-oss-20b'
-
 function protectAgainstTruncatedReply(content: unknown, finishReason: unknown): string {
-  const reply = typeof content === 'string' ? content.trim() : ''
+  const reply = typeof content === 'string' ? stripReasoning(content) : ''
 
   if (!reply) {
     return 'I was unable to explain that clearly. Please ask me again.'
@@ -140,30 +139,10 @@ function parseCoverageResult(rawContent: string, allowedKeys: readonly string[])
   }
 }
 
-async function callGroq({
-  apiKey,
-  messages,
-  maxTokens,
-}: {
-  apiKey: string
-  messages: Array<{
-    role: 'system' | 'user' | 'assistant'
-    content: string
-  }>
-  maxTokens: number
-}) {
-  return fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      max_tokens: maxTokens,
-    }),
-  })
+// The shared helper retries transient failures and falls back to another model
+// when one is rate limited, so this route no longer needs its own retry loop.
+async function callGroq({ messages, maxTokens }: { messages: GroqMessage[]; maxTokens: number }) {
+  return fetchGroqChat({ messages, maxTokens })
 }
 
 export async function POST(request: Request) {
@@ -285,17 +264,12 @@ const systemPromptWithPrep = `${systemPrompt}${meetingPrepContext}`
       },
     ]
 
-    // The prompt targets roughly 60 words. Extra token headroom allows the model
-    // to finish its final sentence without encouraging a longer visible reply.
-    let response = await callGroq({ apiKey, messages: replyMessages, maxTokens: 180 })
-    let data = await response.json()
-
-    // A single failed call (rate limit, transient 5xx) would otherwise break the
-    // conversation outright, so retry once before surfacing an error.
-    if (!response.ok) {
-      response = await callGroq({ apiKey, messages: replyMessages, maxTokens: 180 })
-      data = await response.json()
-    }
+    // The prompt targets roughly 60 words. This is a reasoning model whose hidden
+    // thinking counts against the budget, so the ceiling must be generous or the
+    // visible reply comes back cut short or empty. The prompt, not this number,
+    // is what keeps the reply short.
+    const { response, model } = await callGroq({ messages: replyMessages, maxTokens: 1000 })
+    const data = await response.json()
 
     if (!response.ok) {
       return NextResponse.json(
@@ -329,8 +303,7 @@ const systemPromptWithPrep = `${systemPrompt}${meetingPrepContext}`
     // Pass two classifies facts revealed across the transcript. It reports evidence
     // only; the deterministic completion state machine below makes the decision.
     if (requiredInfoPoints.length > 0) {
-      const coverageResponse = await callGroq({
-        apiKey,
+      const { response: coverageResponse } = await callGroq({
         messages: [
           {
             role: 'system',
@@ -355,13 +328,13 @@ Rules:
             content: JSON.stringify(fullConversation),
           },
         ],
-        maxTokens: 250,
+        maxTokens: 1000,
       })
 
       if (coverageResponse.ok) {
         const coverageData = await coverageResponse.json()
 
-        const coverageContent = coverageData.choices?.[0]?.message?.content ?? ''
+        const coverageContent = stripReasoning(coverageData.choices?.[0]?.message?.content ?? '')
 
         coverageResult = parseCoverageResult(
           coverageContent,
@@ -395,8 +368,7 @@ Rules:
 
       // Pass three is optional presentation polish. If it fails, the deterministic
       // neutral closing above remains, so progression never depends on this call.
-      const closingResponse = await callGroq({
-        apiKey,
+      const { response: closingResponse } = await callGroq({
         messages: [
           {
             role: 'system',
@@ -424,7 +396,7 @@ Do not mention a proposal, engagement, selection, or definite next step because 
             content: 'Close the conversation naturally now.',
           },
         ],
-        maxTokens: 100,
+        maxTokens: 1000,
       })
 
       if (closingResponse.ok) {
@@ -432,8 +404,10 @@ Do not mention a proposal, engagement, selection, or definite next step because 
 
         const closingReply = closingData.choices?.[0]?.message?.content
 
-        if (typeof closingReply === 'string' && closingReply.trim().length > 0) {
-          reply = closingReply.trim()
+        const cleanClosingReply = typeof closingReply === 'string' ? stripReasoning(closingReply) : ''
+
+        if (cleanClosingReply.length > 0) {
+          reply = cleanClosingReply
         }
       }
     }
@@ -441,7 +415,7 @@ Do not mention a proposal, engagement, selection, or definite next step because 
     return NextResponse.json({
       success: true,
       provider: 'groq',
-      model: MODEL,
+      model,
       persona_id,
       persona_name: persona.name ?? persona_id,
       level: persona.level ?? null,
