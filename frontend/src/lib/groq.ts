@@ -19,10 +19,28 @@ export function stripReasoning(text: string): string {
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_TIMEOUT_MS = 25_000
 // A model that reports its tokens-per-day cap as used up is skipped for a while,
-// so later calls do not each waste a request rediscovering that.
+// so later calls do not each waste a request rediscovering that. Keyed by
+// "<credential label>:<model>" since each API key has its own separate budget
+// per model, even when the model name is the same.
 const DAILY_LIMIT_PATTERN = /tokens per day|\(TPD\)/i
 const DAILY_LIMIT_SKIP_MS = 5 * 60_000
 const exhaustedUntil = new Map<string, number>()
+
+// Tried in order. GROQ_API_KEY is required; GROQ_API_KEY_BACKUP is optional — a
+// teammate's own Groq account, so it draws from a completely separate daily
+// budget. Every model in GROQ_MODELS is tried on one key before moving to the
+// next, so the backup key is only ever touched once the primary is genuinely
+// out of room on all four models.
+function credentials(): { label: string; apiKey: string }[] {
+  const list: { label: string; apiKey: string }[] = []
+  const primary = process.env.GROQ_API_KEY
+  const backup = process.env.GROQ_API_KEY_BACKUP
+
+  if (primary) list.push({ label: 'primary', apiKey: primary })
+  if (backup) list.push({ label: 'backup', apiKey: backup })
+
+  return list
+}
 // A rate-limit (429) or transient server error (5xx) is worth one retry after
 // a short pause — the rejected call was never processed, so this doesn't cost
 // extra tokens. Anything else (bad request, bad key) retrying won't fix.
@@ -52,67 +70,79 @@ export class GroqError extends Error {
   }
 }
 
-// Sends one chat request and returns Groq's raw Response plus the model that
-// answered. Retries a transient failure once, and moves on to the next model in
-// GROQ_MODELS when one is rate limited. A failed Response is returned as-is (its
-// body unread) so callers can decide how to report it. Server only.
+// Sends one chat request and returns Groq's raw Response plus which credential
+// and model answered. Retries a transient failure once, moves on to the next
+// model when one is rate limited, and moves on to the next API key (the
+// backup) once every model on the current key is exhausted. A failed Response
+// is returned as-is (its body unread) so callers can decide how to report it.
+// Server only.
 export async function fetchGroqChat(options: {
   messages: GroqMessage[]
   maxTokens: number
   temperature?: number
-}): Promise<{ response: Response; model: string }> {
-  const apiKey = process.env.GROQ_API_KEY
+}): Promise<{ response: Response; model: string; credential: string }> {
+  const creds = credentials()
 
-  if (!apiKey) {
+  if (creds.length === 0) {
     throw new GroqError('GROQ_API_KEY is not configured', 500)
   }
 
-  const now = Date.now()
-  const available = GROQ_MODELS.filter((model) => (exhaustedUntil.get(model) ?? 0) <= now)
-  // If every model is flagged, try them all anyway rather than failing outright.
-  const candidates = available.length > 0 ? available : GROQ_MODELS
+  let last: { response: Response; model: string; credential: string } | undefined
 
-  let last: { response: Response; model: string } | undefined
+  for (const { label, apiKey } of creds) {
+    const now = Date.now()
+    const available = GROQ_MODELS.filter(
+      (model) => (exhaustedUntil.get(`${label}:${model}`) ?? 0) <= now
+    )
+    // If every model is flagged for this key, try them all anyway rather than
+    // skipping straight to the next key.
+    const candidates = available.length > 0 ? available : GROQ_MODELS
+    let badKey = false
 
-  for (const model of candidates) {
-    for (let attempt = 0; attempt < MAX_TRANSIENT_ATTEMPTS; attempt++) {
-      const response = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          temperature: options.temperature ?? 0.6,
-          messages: options.messages,
-          max_tokens: options.maxTokens,
-        }),
-        signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
-      })
+    for (const model of candidates) {
+      for (let attempt = 0; attempt < MAX_TRANSIENT_ATTEMPTS; attempt++) {
+        const response = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            temperature: options.temperature ?? 0.6,
+            messages: options.messages,
+            max_tokens: options.maxTokens,
+          }),
+          signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
+        })
 
-      last = { response, model }
-      if (response.ok) return last
+        last = { response, model, credential: label }
+        if (response.ok) return last
 
-      const body = await response.clone().text()
-      console.error('Groq request failed:', model, response.status, body)
+        const body = await response.clone().text()
+        console.error('Groq request failed:', label, model, response.status, body)
 
-      // A daily cap will not clear in seconds, so waiting is pointless: go
-      // straight to the next model.
-      if (response.status === 429 && DAILY_LIMIT_PATTERN.test(body)) {
-        exhaustedUntil.set(model, Date.now() + DAILY_LIMIT_SKIP_MS)
-        break
+        // A daily cap will not clear in seconds, so waiting is pointless: go
+        // straight to the next model on this key.
+        if (response.status === 429 && DAILY_LIMIT_PATTERN.test(body)) {
+          exhaustedUntil.set(`${label}:${model}`, Date.now() + DAILY_LIMIT_SKIP_MS)
+          break
+        }
+
+        // A bad key fails on every model on that key, so stop trying this key
+        // entirely and move straight to the next one (if any).
+        if (response.status === 401 || response.status === 403) {
+          badKey = true
+          break
+        }
+
+        if (!isRetryableStatus(response.status)) break
+        if (attempt < MAX_TRANSIENT_ATTEMPTS - 1) {
+          await sleep(TRANSIENT_RETRY_DELAY_MS * (attempt + 1))
+        }
       }
 
-      if (!isRetryableStatus(response.status)) {
-        // A bad key fails on every model, so stop. Any other rejection can be
-        // specific to one model, so let the next one try.
-        if (response.status === 401 || response.status === 403) return last
-        break
-      }
-      if (attempt < MAX_TRANSIENT_ATTEMPTS - 1) {
-        await sleep(TRANSIENT_RETRY_DELAY_MS * (attempt + 1))
-      }
+      if (badKey) break
     }
   }
 
