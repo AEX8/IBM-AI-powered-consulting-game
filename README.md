@@ -1,189 +1,123 @@
-# Garage Boilerplate
+# IBM Consultancy 101
 
-> Streamlined Next.js + Firebase monorepo for student capstone projects — batteries included, beginner friendly, free-tier only.
+An AI-powered consulting training game. Players work a full client engagement, from finding a lead to closing the deal, by talking to AI-driven clients who react like real people and grade every step.
 
-**New here? Read the [step-by-step guide](docs/GUIDE.md)** — it walks you from clone to shipping your first feature. The system diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Built by Team 9 for the RMIT x IBM capstone.
 
-## Stack
+**Live demo:** https://ibm-ai-powered-consulting-game-fron.vercel.app/
+
+## How the game works
+
+There are six stages, played against two AI clients (Sarah Chen and David Palte):
+
+| Stage | What you do |
+|-------|-------------|
+| 1. Find a Lead | Walk around the office and have a discovery conversation with each client |
+| 2. Outreach | Research a client and send them an outreach email, which gets graded |
+| 3. Prepare for a Meeting | Pick objectives and questions, then get feedback on your preparation |
+| 4. Client Meeting | Hold a live AI-driven meeting, then get scored on relationship, trust and more |
+| 5. Proposal and Negotiation | Write a proposal and handle the client's objections |
+| 6. Close the Deal | Agree contract terms and answer the client's final concerns |
+
+Progress and XP are saved per player, and each stage unlocks only after the one before it is done.
+
+## How the AI works
+
+- Each client is a document in Firestore (job title, company, problem, personality, objections).
+- For every conversation or grading step, the server builds a prompt from that client's data plus the rules for that stage, and sends it to Groq.
+- The model replies in JSON, which the server validates before the player sees anything.
+- The AI only scores. Whether you pass is decided by plain rules in our own code.
+- If a call fails or a model hits its limit, the app retries and falls back to other models, then to a backup API key.
+
+## Tech stack
 
 | | |
 |-|-|
-| **Frontend** | Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind v4 |
-| **Backend** | Firebase Cloud Functions v2 · Express (single "fat lambda") |
-| **Database / Auth** | Firestore · Firebase Authentication (free Spark plan) |
-| **Package manager** | pnpm workspaces — always `pnpm`, never `npm`/`yarn` |
-| **Testing** | Vitest · Testing Library · supertest |
-| **Quality gates** | Lefthook (Conventional Commits, lint, format) · GitHub Actions CI |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind v4 |
+| Game | Phaser 3 for the room-based levels |
+| Auth and data | Firebase Authentication (anonymous sign-in) and Firestore |
+| AI | Groq (open-source models such as `gpt-oss-20b`) |
+| Hosting | Vercel |
+| Tooling | pnpm workspaces, Vitest, ESLint, Prettier, Lefthook |
 
-There's no local emulator and no Docker — the app always talks to a real (free) Firebase project. Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; store file metadata in Firestore or use a free third-party host if a feature needs uploads.
+The backend is the set of Next.js API routes in `frontend/src/app/api`.
 
-## Quick Start
+## Run it locally
 
-### 0. Prerequisites
+**Prerequisites:** Node.js 22 and pnpm (`npm install -g pnpm`).
 
-- **Node.js 22** — [nodejs.org](https://nodejs.org)
-- **pnpm** — `npm install -g pnpm`
-- No Firebase CLI install needed — `npx firebase-tools` runs it on demand for rule deploys
+1. Install dependencies and create the env file:
 
-### 1. Bootstrap
-
-```bash
-git clone https://github.com/your-org/garage-boilerplate my-project
-cd my-project
-pnpm run bootstrap
-```
-
-> **Easiest path:** open the project in Claude Code and run **`/bootstrap`** — it does everything below, walks you through creating a free Firebase project, handles the common failure modes, and finishes with a verified auth smoke test.
-
-Bootstrap installs dependencies, creates the root `.env` from `.env.example` (only if missing), and generates the per-package env files.
-
-### 2. Connect Firebase — one env file
-
-**All env values live in the root `.env`.** `frontend/.env.local` and `backend/.env` are generated from it by `pnpm run env:sync` (runs automatically before `pnpm run dev`) — never edit them by hand.
-
-Create a project at [console.firebase.google.com](https://console.firebase.google.com) — the free Spark plan is enough, no billing required — then:
-
-1. Enable **Authentication** (Email/Password + Google) and create a **Firestore** database
-2. Register a **web app** (Project settings → Your apps → Web) and copy each `firebaseConfig` value into the matching `NEXT_PUBLIC_FIREBASE_*` variable in `.env`
-3. Generate a **service account key** (Project settings → Service accounts), base64-encode it, and set `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64` in `.env`:
    ```bash
-   # macOS (BSD base64 — no -w flag)
-   base64 -i service-account.json | tr -d '\n'
-   # Linux (GNU base64)
-   base64 -w 0 service-account.json
-   # Windows PowerShell (single quotes around the path)
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\path\to\service-account.json'))
+   pnpm run bootstrap
    ```
-4. Set `NEXT_PUBLIC_FIREBASE_PROJECT_ID` in `.env` and the same id in `.firebaserc` (`projects.default`)
 
-Full variable reference: [docs/ENV-VARS.md](docs/ENV-VARS.md).
+2. Fill in the root `.env` (see `.env.example`):
+   - The `NEXT_PUBLIC_FIREBASE_*` values from your Firebase web app
+   - `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64`, a base64-encoded service account key
+   - `GROQ_API_KEY`, and optionally `GROQ_API_KEY_BACKUP` for a second Groq account
 
-### 3. Run
+3. In the Firebase console, enable **Anonymous** sign-in and create a Firestore database, then publish the rules from `firebase/firestore.rules`.
 
-```bash
-pnpm run dev
-```
+4. Add the two client personas to Firestore:
 
-- App → [http://localhost:3000](http://localhost:3000)
+   ```bash
+   node scripts/seed-personas.js
+   ```
 
-Restart the dev server after changing `.env` — `NEXT_PUBLIC_*` variables are baked in at startup.
+5. Start the app:
 
-## Troubleshooting
+   ```bash
+   pnpm run dev
+   ```
 
-| Symptom | What to try |
-|--------|-------------|
-| `auth/invalid-api-key` | Fill every `NEXT_PUBLIC_FIREBASE_*` value in the root `.env`, run `pnpm run env:sync`, then restart the dev server. |
-| "Firebase web config is incomplete" on Vercel | A `NEXT_PUBLIC_FIREBASE_*` env var is missing in Vercel. Add it under Project Settings → Environment Variables (same names as your local `.env`), then redeploy — existing deployments don't pick up new env vars automatically. See [docs/CI-CD.md § Vercel Setup](docs/CI-CD.md#vercel-setup-frontend). |
-| `Invalid project id: REPLACE_WITH_...` | Set the real project id in `.firebaserc`. |
-| `'next' is not recognized` / `Command "next" not found` | Run `pnpm install` from the **repo root**. If it persists, delete all `node_modules` folders and reinstall. |
-| Ignored build scripts warning from pnpm | Build approvals live in `pnpm-workspace.yaml` (`allowBuilds`) — re-run `pnpm install`. |
-| "Missing or insufficient permissions" | Firestore security rules don't allow that access — add rules in `firebase/firestore.rules`, then deploy them (`npx firebase-tools deploy --only firestore:rules`). |
-| Commit rejected | Message must be Conventional Commits (`feat: …`, `fix: …`). |
+   Then open http://localhost:3000. Restart the dev server after any `.env` change.
 
-More beginner-oriented pitfalls: [docs/GUIDE.md § Common pitfalls](docs/GUIDE.md#6-common-pitfalls).
+More detail on environment variables is in [docs/ENV-VARS.md](docs/ENV-VARS.md).
 
-## Project Structure
+## Project structure
 
 ```
-/
-├── frontend/          Next.js 16 App Router
-│   └── src/
-│       ├── app/       Pages (route groups: (auth), (dashboard))
-│       ├── components/ UI components (layout, shared)
-│       ├── features/  Feature modules (one folder per business domain)
-│       ├── lib/       Firebase client/admin (lazy init), validations, utils
-│       ├── hooks/     Custom React hooks
-│       ├── providers/ React context providers
-│       ├── actions/   Next.js Server Actions
-│       └── types/     TypeScript type definitions
-├── backend/           Cloud Functions v2 — Express fat-lambda
-│   └── src/
-│       ├── app.ts     Express app factory
-│       ├── routes/    One file per resource
-│       ├── middleware/ auth (ID token → req.user), errorHandler (RFC 9457)
-│       └── lib/       firebase (Admin singleton), errors (HttpError), zodConverter
-├── firebase/          Firestore rules, indexes
-├── docs/              Guides and reference docs — start with GUIDE.md
-└── .claude/           Claude Code harness (agents, skills, MCP, hooks)
+frontend/src/
+  app/          Pages and API routes
+  components/   Shared UI
+  features/     One folder per part of the game (game, meeting, proposal, closing, progress)
+  lib/          Firebase and Groq helpers
+scripts/        Env sync and persona seeding
+firebase/       Firestore rules and indexes
+docs/           Extra documentation
 ```
+
+Files worth reading first:
+
+- `frontend/src/lib/groq.ts`: every AI call goes through here
+- `frontend/src/features/meeting/prompts.ts`: how a client prompt is built
+- `frontend/src/app/api/`: the grading and conversation routes
+- `scripts/seed-personas.js`: the client personas
 
 ## Commands
 
 ```bash
-pnpm run bootstrap        # First-time: install deps, env templates
-pnpm run dev              # Frontend dev server (talks to your real Firebase project)
-pnpm run build            # Build all packages
-pnpm run test             # Backend unit tests (mocked Firebase Admin)
-pnpm run test:component   # Frontend unit tests
-pnpm run test:all         # All tests
-pnpm run lint             # ESLint across all packages
-pnpm run format           # Prettier across all packages
-pnpm run typecheck        # TypeScript check across all packages
-pnpm run env:sync         # Regenerate frontend/backend env files from root .env
-pnpm run validate         # Check for unreplaced template placeholders
+pnpm run dev         # Start the dev server
+pnpm run build       # Build all packages
+pnpm run lint        # Lint
+pnpm run typecheck   # Type check
+pnpm run test:all    # Run all tests
+pnpm run env:sync    # Regenerate frontend env files from the root .env
 ```
-
-## Security
-
-Security is enforced in independent layers — Claude Code guard hooks, HTTP hardening (helmet/CORS/rate limits), token + session-cookie auth, Zod input validation, default-deny Firestore rules, and CI scanning (`pnpm audit`). See [docs/SECURITY.md](docs/SECURITY.md).
-
-## Git Workflow
-
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production — protected, no direct pushes |
-| `feature/*` | New features → PR back to `main` |
-| `hotfix/*` | Urgent fixes → PR back to `main` |
-
-Use the Claude Code skills `/git-feature`, `/git-hotfix`, `/git-release`. Details: [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md).
-
-## Claude Code Harness
-
-The repo ships a pre-configured harness: three MCP servers (**context7** for live library docs, **firebase** for Firestore/deploy tooling, **stitch** for design-to-code), three sub-agents (**security-reviewer**, **doc-auditor**, **test-writer**), enforcement hooks (blocks `any`, secret prefixes, direct pushes to `main`, unapproved deploys), and skills for scaffolding and quality:
-
-| Category | Skills |
-|----------|--------|
-| Setup | `/bootstrap` — guided end-to-end local setup with verification |
-| Scaffolding | `/new-feature` · `/new-page` · `/new-component` · `/firebase-collection` · `/add-auth-provider` · `/add-route` · `/evolve-schema` · `/add-env-var` |
-| Quality | `/verify` · `/checkpoint` · `/save-session` · `/resume-session` |
-| Git | `/git-feature` · `/git-hotfix` · `/git-release` |
-
-See [CLAUDE.md](CLAUDE.md) for the full harness reference.
-
-## Documentation
-
-| Topic | Link |
-|-------|------|
-| **Beginner guide (start here)** | [docs/GUIDE.md](docs/GUIDE.md) |
-| Verified walkthrough (all steps + code) | [docs/TUTORIAL-WALKTHROUGH.md](docs/TUTORIAL-WALKTHROUGH.md) |
-| Copy-paste setup (no AI, exact steps) | [docs/COPY-PASTE-SETUP.md](docs/COPY-PASTE-SETUP.md) |
-| Copy-paste feature build (no AI, exact file paths) | [docs/COPY-PASTE-FEATURE.md](docs/COPY-PASTE-FEATURE.md) |
-| Slide deck — system overview + AI tooling | [docs/garage-boilerplate-guide.pptx](docs/garage-boilerplate-guide.pptx) |
-| Slide deck — the notes feature, step by step | [docs/notes-feature-tutorial.pptx](docs/notes-feature-tutorial.pptx) |
-| Architecture + diagrams | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Frontend conventions | [docs/FRONTEND.md](docs/FRONTEND.md) |
-| Backend conventions | [docs/BACKEND.md](docs/BACKEND.md) |
-| Design system | [docs/DESIGN.md](docs/DESIGN.md) |
-| Firestore schema | [docs/FIRESTORE-SCHEMA.md](docs/FIRESTORE-SCHEMA.md) |
-| Environment variables | [docs/ENV-VARS.md](docs/ENV-VARS.md) |
-| Testing | [docs/TESTING.md](docs/TESTING.md) |
-| Security | [docs/SECURITY.md](docs/SECURITY.md) |
-| Git workflow | [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) |
-| CI/CD & deployment | [docs/CI-CD.md](docs/CI-CD.md) |
 
 ## Deployment
 
-The frontend deploys to **Vercel** (free Hobby tier, no billing account needed — this app is server-rendered, so it needs a server host, not static hosting). Firestore rules deploy automatically from CI on merge to `main`; the optional backend (Cloud Function) deploys manually and requires Firebase's paid Blaze plan. Full setup: [docs/CI-CD.md](docs/CI-CD.md).
+The frontend deploys to Vercel and redeploys on every push to `main`. Environment variables are set in the Vercel dashboard (Project Settings, Environment Variables), not committed to git. After adding or changing one, redeploy so it takes effect.
 
-```bash
-npx firebase-tools deploy --only firestore:rules    # rules — free
-npx firebase-tools deploy --only functions          # backend — optional, requires Blaze
-```
+## Team
 
-## Forking for a Client Project
-
-Follow the checklist in [CLAUDE.md — Forking for a New Client Project](CLAUDE.md#forking-for-a-new-client-project), then run `pnpm run validate` to confirm no template placeholders remain.
+- Gayath Wethmin Kaluwahewa, Project Manager and Developer
+- Kashaf Fatima, Developer
+- Amritha Selvaganapathi, UX/UI Designer
+- Fatima Hubail, Business Analyst
+- Ibrahim Allouche, Developer
 
 ## Credits
 
-Original boilerplate by **Duc Gia Tin Huynh** ([LinkedIn](https://www.linkedin.com/in/huynhducgiatin/)).
+Started from the Garage Boilerplate by Duc Gia Tin Huynh ([LinkedIn](https://www.linkedin.com/in/huynhducgiatin/)).
